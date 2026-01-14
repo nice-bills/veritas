@@ -4,19 +4,19 @@ import time
 def main():
     # 1. Initialize the Recorder
     logger = VeritasLogger()
-    print("🎥 Veritas Recorder Started\n")
+    print("Veritas Recorder Started\n")
 
     # 2. Define a "Tool" (Simulated Trade)
     @logger.wrap
     def execute_trade(token_in, token_out, amount):
-        print(f"   🚀 EXECUTING: Swap {amount} {token_in} -> {token_out}")
+        print(f"   EXECUTING: Swap {amount} {token_in} -> {token_out}")
         time.sleep(0.5) # Simulate network lag
         return "tx_hash_0x123456789"
 
     # 3. Define another tool
     @logger.wrap
     def fetch_price(token):
-        print(f"   👀 FETCHING: Price of {token}")
+        print(f"   FETCHING: Price of {token}")
         return 2500.00
 
     # 4. Run the Agent Logic
@@ -27,7 +27,7 @@ def main():
     print("--- Agent Finished ---\n")
 
     # 5. Verify the Evidence
-    print("🔒 AUDIT TRAIL:")
+    print("AUDIT TRAIL:")
     root = logger.get_current_root()
     print(f"Merkle Root (Session Fingerprint): {root}")
     

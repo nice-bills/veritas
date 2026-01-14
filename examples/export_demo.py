@@ -3,7 +3,7 @@ import os
 
 def main():
     logger = VeritasLogger()
-    print("🎥 Veritas Proof Export Demo\n")
+    print("Veritas Proof Export Demo\n")
 
     # 1. Generate some activity
     @logger.wrap(event_type="OBSERVATION")
@@ -24,7 +24,7 @@ def main():
     
     # 3. Validation
     if os.path.exists(filename):
-        print("\n✅ Success! Proof file created.")
+        print("\nSuccess! Proof file created.")
         print(f"   Run 'cat {filename}' to see the cryptographic evidence.")
 
 if __name__ == "__main__":

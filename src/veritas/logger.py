@@ -54,7 +54,7 @@ class VeritasLogger:
         # Add to Merkle Tree
         self._merkle_tree.add_leaf(entry.to_hashable_json())
         
-        print(f"[Veritas] 🔒 Recorded {event_type}: {tool_name} | Root: {self.get_current_root()[:8]}...")
+        print(f"[Veritas] Recorded {event_type}: {tool_name} | Root: {self.get_current_root()[:8]}...")
         return entry
 
     def observe(self, source: str, query: Dict[str, Any], result: Any) -> str:
@@ -84,7 +84,7 @@ class VeritasLogger:
         }
         with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
-        print(f"[Veritas] 💾 Proof package saved to: {filepath}")
+        print(f"[Veritas] Proof package saved to: {filepath}")
 
     def wrap(self, func: Optional[Callable] = None, *, tool_name: str = None, event_type: str = "ACTION"):
         """
