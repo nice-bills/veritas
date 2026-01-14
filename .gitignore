@@ -10,4 +10,11 @@ wheels/
 .venv
 
 # Private documentation
+
 DESIGN.md
+
+
+
+# Generated proofs
+
+session_proof.json
