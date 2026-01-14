@@ -74,6 +74,18 @@ class VeritasLogger:
         """Get the current Merkle Root of all actions."""
         return self._merkle_tree.get_root() or "0x0"
 
+    def export_proofs(self, filepath: str):
+        """Export the full session proof package to a JSON file."""
+        data = {
+            "session_root": self.get_current_root(),
+            "event_count": len(self._logs),
+            "timestamp": time.time(),
+            "logs": [log.model_dump(mode='json') for log in self._logs]
+        }
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"[Veritas] 💾 Proof package saved to: {filepath}")
+
     def wrap(self, func: Optional[Callable] = None, *, tool_name: str = None, event_type: str = "ACTION"):
         """
         Decorator to automatically audit a function call.
