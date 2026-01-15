@@ -13,26 +13,20 @@ def main():
     print("------------------------------------")
 
     # 1. Load Credentials
-    api_key_name = os.getenv("CDP_API_KEY_NAME")
-    api_key_private_key = os.getenv("CDP_API_KEY_PRIVATE_KEY")
+    api_key_id = os.getenv("CDP_API_KEY_ID")
+    api_key_secret = os.getenv("CDP_API_KEY_SECRET")
 
-    if not api_key_name or not api_key_private_key:
+    if not api_key_id or not api_key_secret:
         print("ERROR: Missing CDP Credentials.")
-        print("Please set CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE_KEY environment variables.")
+        print("Please set CDP_API_KEY_ID and CDP_API_KEY_SECRET in your .env file.")
         return
 
     # 2. Configure CDP
     try:
-        # Check if keys are paths or raw strings
-        if os.path.exists(api_key_private_key):
-             # Logic for file-based keys if needed, but standard env var is usually the string
-             pass
-        
-        Cdp.configure(api_key_name, api_key_private_key)
+        # The CDP SDK expects (api_key_name, private_key)
+        Cdp.configure(api_key_id, api_key_secret)
         print("CDP SDK Configured.")
     except Exception as e:
-        print(f"Failed to configure CDP: {e}")
-        return
 
     # 3. Initialize Wallet/Account
     print("Initializing Agent Wallet...")
