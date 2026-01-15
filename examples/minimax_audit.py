@@ -2,6 +2,10 @@ import os
 import json
 import requests
 from veritas import VeritasLogger
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configuration
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")

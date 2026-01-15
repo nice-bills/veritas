@@ -3,6 +3,10 @@ import json
 import time
 from cdp import Cdp, EvmServerAccount
 from veritas import VeritasAttestor
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 def main():
     print("Veritas On-Chain Attestation Utility")
