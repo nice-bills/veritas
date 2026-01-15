@@ -1,20 +1,22 @@
 import os
 import json
 import time
-from cdp import Cdp, EvmServerAccount
+import asyncio
+from cdp import CdpClient, EvmServerAccount
 from veritas import VeritasAttestor
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-def main():
+async def main():
     print("Veritas On-Chain Attestation Utility")
     print("------------------------------------")
 
     # 1. Load Credentials
     api_key_id = os.getenv("CDP_API_KEY_ID")
     api_key_secret = os.getenv("CDP_API_KEY_SECRET")
+    wallet_secret = os.getenv("CDP_WALLET_SECRET")
 
     if not api_key_id or not api_key_secret:
         print("ERROR: Missing CDP Credentials.")
@@ -23,17 +25,22 @@ def main():
 
     # 2. Configure CDP
     try:
-        # The CDP SDK expects (api_key_name, private_key)
-        Cdp.configure(api_key_id, api_key_secret)
-        print("CDP SDK Configured.")
+        # Instantiate the client with API keys and the wallet encryption secret
+        client = CdpClient(
+            api_key_id=api_key_id, 
+            api_key_secret=api_key_secret,
+            wallet_secret=wallet_secret
+        )
+        print("CDP Client Initialized.")
     except Exception as e:
+        print(f"Failed to initialize CDP: {e}")
+        return
 
     # 3. Initialize Wallet/Account
     print("Initializing Agent Wallet...")
     try:
-        # Create a new server-controlled wallet on Base Sepolia
-        # In production, you'd use 'get_account' or seed matching
-        agent_account = EvmServerAccount.create_with_network_id("base-sepolia")
+        # Use the client to create an account (async)
+        agent_account = await client.evm.create_account()
         print(f"Agent Address: {agent_account.address}")
     except Exception as e:
         print(f"Failed to create wallet: {e}")
@@ -42,24 +49,22 @@ def main():
     # 4. Fund the Wallet (Dev Only)
     print("Checking Balance...")
     try:
-        # Request testnet funds
-        faucet_tx = agent_account.request_faucet()
+        # Request testnet funds (async)
+        faucet_tx = await agent_account.request_faucet()
         print(f"Faucet Requested. Tx: {faucet_tx}")
         # Wait for funds to arrive
-        print("Waiting 5s for faucet transaction...")
-        time.sleep(5) 
+        print("Waiting 10s for faucet transaction...")
+        await asyncio.sleep(10) 
     except Exception as e:
         print(f"Faucet skipped or failed (might have funds already): {e}")
 
     # 5. Load Proof
     proof_file = "minimax_session.json"
-    # Fallback to basic proof if minimax one doesn't exist
     if not os.path.exists(proof_file):
         proof_file = "test_proof.json"
     
     if not os.path.exists(proof_file):
-        print(f"ERROR: No proof file found (checked {proof_file}).")
-        print("Run 'python examples/minimax_audit.py' first.")
+        print(f"ERROR: No proof file found.")
         return
 
     with open(proof_file, "r") as f:
@@ -72,10 +77,8 @@ def main():
     attestor = VeritasAttestor(agent_account, network_id="base-sepolia")
     
     try:
-        # Use a placeholder Schema UID for now (or register one)
-        # We will use the common "Bytes32" schema if it exists, or just our custom logic.
-        # For this demo, we assume the logic in attestor.py handles the EAS call.
-        tx_hash = attestor.attest_root(
+        # Note: attestor.py needs to be checked for async as well
+        tx_hash = await attestor.attest_root(
             merkle_root=merkle_root, 
             schema_uid="0x0000000000000000000000000000000000000000000000000000000000000000", 
             agent_id="MiniMax-Agent-001"
@@ -84,6 +87,8 @@ def main():
         print(f"View Transaction: https://sepolia.basescan.org/tx/{tx_hash}")
     except Exception as e:
         print(f"Attestation Failed: {e}")
+    finally:
+        await client.close()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
