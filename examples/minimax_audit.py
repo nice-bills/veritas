@@ -8,36 +8,31 @@ MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
 MINIMAX_GROUP_ID = os.getenv("MINIMAX_GROUP_ID") # Optional, depending on endpoint
 
 def call_minimax(prompt: str) -> str:
-    """Simple wrapper to get a decision from MiniMax."""
+    """Simple wrapper to get a decision from MiniMax (OpenAI-compatible)."""
     if not MINIMAX_API_KEY:
         print("[Mock] MiniMax API Key missing. Simulating response: 'BUY'")
         return "BUY"
 
-    url = "https://api.minimax.chat/v1/text/chatcompletion_pro"
+    url = "https://api.minimax.io/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {MINIMAX_API_KEY}",
         "Content-Type": "application/json"
     }
     
     payload = {
-        "model": "abab5.5-chat", # Using a standard model
+        "model": "MiniMax-M2.1", # Matches defi-agents config
         "messages": [
-            {"sender_type": "USER", "sender_name": "User", "text": prompt}
+            {"role": "system", "content": "You are a crypto trading bot. Output ONLY 'BUY' or 'SELL' based on the data."},
+            {"role": "user", "content": prompt}
         ],
-        "bot_setting": [
-            {
-                "bot_name": "TraderAgent",
-                "content": "You are a crypto trading bot. Output ONLY 'BUY' or 'SELL' based on the data."
-            }
-        ],
-        "reply_constraints": {"sender_type": "BOT", "sender_name": "TraderAgent"},
+        "temperature": 0.1
     }
 
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
         res_json = response.json()
-        return res_json['reply']
+        return res_json['choices'][0]['message']['content']
     except Exception as e:
         print(f"MiniMax Call Failed: {e}")
         return "HOLD"
