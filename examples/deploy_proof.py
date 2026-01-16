@@ -81,7 +81,8 @@ async def main():
         # Note: attestor.py needs to be checked for async as well
         tx_hash = await attestor.attest_root(
             merkle_root=merkle_root, 
-            schema_uid="0x0000000000000000000000000000000000000000000000000000000000000000", 
+            # Registered Schema: "bytes32 merkleRoot, string agentId, uint256 timestamp"
+            schema_uid="0x4ee2145e253098e581a38bdbb7f7c81eae64b6d9d5868063c71b562779056441", 
             agent_id="MiniMax-Agent-001"
         )
         print("\nSUCCESS: Proof Attested on Base Sepolia!")

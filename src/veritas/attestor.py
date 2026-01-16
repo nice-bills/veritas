@@ -2,6 +2,8 @@ from eth_abi import encode
 from typing import Optional, Dict, Any
 from web3 import Web3
 import time
+import json
+import os
 
 # EAS Contract Addresses on Base Sepolia
 EAS_CONTRACT_ADDRESS = "0x4200000000000000000000000000000000000021"
@@ -17,12 +19,29 @@ class VeritasAttestor:
         self.client = client
         self.account = account
         self.network_id = network_id
+        
+        # Load ABI
+        abi_path = os.path.join(os.path.dirname(__file__), "eas_abi.json")
+        with open(abi_path, "r") as f:
+            self.eas_abi = json.load(f)
 
     async def attest_root(self, merkle_root: str, schema_uid: str, agent_id: str = "veritas-agent") -> str:
         """
         Attests a Merkle Root to the EAS contract.
         Returns the transaction hash.
         """
+        # Convert hex root to bytes
+        clean_root = merkle_root[2:] if merkle_root.startswith("0x") else merkle_root
+        root_bytes = bytes.fromhex(clean_root)
+        
+        timestamp = int(time.time())
+
+        # Encode data according to schema: bytes32 merkleRoot, string agentId, uint256 timestamp
+        encoded_payload = encode(
+            ['bytes32', 'string', 'uint256'], 
+            [root_bytes, agent_id, timestamp]
+        )
+
         print(f"[Veritas] Sending attestation to EAS | Root: {merkle_root[:10]}...")
         
         try:
@@ -34,23 +53,41 @@ class VeritasAttestor:
             if not w3.is_connected():
                 raise ConnectionError("Could not connect to Base Sepolia RPC")
 
-            # Create the transaction
-            # In a real app, we would encode the EAS.attest call here.
-            # For this MVP, we send a 0 ETH self-transfer to prove the account works.
+            # Initialize EAS Contract
+            eas_contract = w3.eth.contract(address=EAS_CONTRACT_ADDRESS, abi=self.eas_abi)
+
+            # Construct AttestationRequest Struct
+            # struct AttestationRequest { bytes32 schema; AttestationRequestData data; }
+            # struct AttestationRequestData { address recipient; uint64 expirationTime; bool revocable; bytes32 refUID; bytes data; uint256 value; }
             
-            tx = {
-                'to': self.account.address,
-                'value': 0,
-                'gas': 25000,
+            request = (
+                schema_uid,
+                (
+                    "0x0000000000000000000000000000000000000000", # recipient (none)
+                    0, # expirationTime (0 = no expiration)
+                    True, # revocable
+                    b'\x00' * 32, # refUID (none)
+                    encoded_payload, # data
+                    0 # value
+                )
+            )
+
+            # Build Transaction
+            nonce = w3.eth.get_transaction_count(self.account.address)
+            
+            # Estimate gas or hardcode safe buffer
+            tx_data = eas_contract.functions.attest(request).build_transaction({
+                'chainId': 84532,
+                'gas': 300000, # Safe buffer for EAS
                 'gasPrice': w3.eth.gas_price,
-                'nonce': w3.eth.get_transaction_count(self.account.address),
-                'chainId': 84532 # Base Sepolia Chain ID
-            }
+                'nonce': nonce,
+                'from': self.account.address
+            })
             
-            # Sign using the local account's private key
-            signed_tx = w3.eth.account.sign_transaction(tx, self.account.key)
+            # Sign
+            signed_tx = w3.eth.account.sign_transaction(tx_data, self.account.key)
             
-            # Broadcast the raw transaction
+            # Broadcast
             tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             tx_hash_hex = w3.to_hex(tx_hash)
             
