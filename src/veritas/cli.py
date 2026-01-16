@@ -1,6 +1,8 @@
 import typer
 import json
 import os
+import re
+import ast
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -10,7 +12,10 @@ app = typer.Typer(help="Veritas: AI Agent Audit Verification Tool")
 console = Console()
 
 @app.command()
-def verify(proof_file: str = typer.Argument(..., help="Path to the session_proof.json file")):
+def verify(
+    proof_file: str = typer.Argument(..., help="Path to the session_proof.json file"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full content of verified logs")
+):
     """
     Verify the cryptographic integrity of an agent session.
     """
@@ -39,10 +44,32 @@ def verify(proof_file: str = typer.Argument(..., help="Path to the session_proof
     table.add_column("Status", style="bold")
     table.add_column("Check")
     
-    for detail in details:
+    for i, detail in enumerate(details):
         status = "[green]PASS[/green]" if "Verified" in detail or "verified" in detail else "[yellow]INFO[/yellow]"
         if "Warning" in detail: status = "[yellow]WARN[/yellow]"
+        if "FAILURE" in detail or "TAMPER" in detail: status = "[red]FAIL[/red]"
         table.add_row(status, detail)
+        
+        # Verbose: Show log content if this is a log verification line
+        if verbose and "Log #" in detail:
+            match = re.search(r"Log #(\d+)", detail)
+            if match:
+                try:
+                    idx = int(match.group(1))
+                    content = proof_data["logs"][idx]["output_result"]
+                    
+                    # Try to parse python dict string representation to JSON
+                    try:
+                        if isinstance(content, str) and content.strip().startswith("{"):
+                             parsed = ast.literal_eval(content)
+                             pretty = json.dumps(parsed, indent=2)
+                             table.add_row("", f"[dim]{pretty}[/dim]")
+                        else:
+                             table.add_row("", f"[dim]{content}[/dim]")
+                    except:
+                        table.add_row("", f"[dim]{content}[/dim]")
+                except Exception:
+                    pass
         
     console.print(table)
     
