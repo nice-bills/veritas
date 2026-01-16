@@ -63,6 +63,18 @@ class VeritasAgent:
         """Clean up connections."""
         await self.client.close()
 
+    def execute_action(self, tool_name: str, func: callable, *args, **kwargs):
+        """
+        Execute a tool action with automatic logging and evidence linking.
+        """
+        basis_id = self.logger.last_event_id
+        
+        @self.logger.wrap(event_type="ACTION", tool_name=tool_name)
+        def _exec():
+            return func(*args, **kwargs)
+            
+        return _exec(basis_id=basis_id)
+
     async def run_mission(self, objective: str):
         """
         Execute a mission: Observe -> Think -> Act.
@@ -89,12 +101,10 @@ class VeritasAgent:
 
         # 3. Act
         if "ACT" in decision.upper():
-            @self.logger.wrap(event_type="ACTION", tool_name="execute_mission_step")
             def execute_step():
-                # Simulated action for the prototype
                 return {"status": "success", "detail": "Action executed based on reasoning"}
             
-            execute_step(basis_id=obs_id)
+            self.execute_action("execute_mission_step", execute_step)
         else:
             print("[VeritasAgent] Decided to wait.")
 

@@ -32,7 +32,8 @@ class MiniMaxBrain:
         }
 
         try:
-            response = requests.post(self.base_url, headers=headers, json=payload)
+            # Added timeout to prevent hanging
+            response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             content = response.json()['choices'][0]['message']['content']
             

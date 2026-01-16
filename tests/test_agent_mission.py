@@ -14,14 +14,15 @@ class TestAgentMission(unittest.IsolatedAsyncioTestCase):
             
         agent = VeritasAgent(name="MissionAgent")
         
-        # Run a simple mission
-        objective = "If I have any ETH, execute a successful action."
-        root = await agent.run_mission(objective)
-        
-        self.assertIsNotNone(root)
-        self.assertTrue(len(agent.logger.get_logs()) >= 1)
-        
-        await agent.shutdown()
+        try:
+            # Run a simple mission
+            objective = "If I have any ETH, execute a successful action."
+            root = await agent.run_mission(objective)
+            
+            self.assertIsNotNone(root)
+            self.assertTrue(len(agent.logger.get_logs()) >= 1)
+        finally:
+            await agent.shutdown()
 
 if __name__ == "__main__":
     unittest.main()
