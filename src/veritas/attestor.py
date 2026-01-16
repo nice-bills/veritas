@@ -73,13 +73,13 @@ class VeritasAttestor:
             )
 
             # Build Transaction
-            nonce = w3.eth.get_transaction_count(self.account.address)
+            nonce = w3.eth.get_transaction_count(self.account.address, 'pending')
             
             # Estimate gas or hardcode safe buffer
             tx_data = eas_contract.functions.attest(request).build_transaction({
                 'chainId': 84532,
                 'gas': 300000, # Safe buffer for EAS
-                'gasPrice': w3.eth.gas_price,
+                'gasPrice': int(w3.eth.gas_price * 1.2), # Add 20% tip for speed
                 'nonce': nonce,
                 'from': self.account.address
             })
