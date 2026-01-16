@@ -14,23 +14,16 @@ async def main():
     print("------------------------------------")
 
     # 1. Load Credentials
-    api_key_id = os.getenv("CDP_API_KEY_ID")
-    api_key_secret = os.getenv("CDP_API_KEY_SECRET")
-    wallet_secret = os.getenv("CDP_WALLET_SECRET")
-
-    if not api_key_id or not api_key_secret:
-        print("ERROR: Missing CDP Credentials.")
-        print("Please set CDP_API_KEY_ID and CDP_API_KEY_SECRET in your .env file.")
+    # (Just verifying they exist, CdpClient will load them from env)
+    if not os.getenv("CDP_API_KEY_ID") or not os.getenv("CDP_API_KEY_SECRET"):
+        print("ERROR: Missing CDP Credentials in environment.")
         return
 
     # 2. Configure CDP
+    client = None
     try:
-        # Instantiate the client with API keys and the wallet encryption secret
-        client = CdpClient(
-            api_key_id=api_key_id, 
-            api_key_secret=api_key_secret,
-            wallet_secret=wallet_secret
-        )
+        # Initialize Client
+        client = CdpClient()
         print("CDP Client Initialized.")
     except Exception as e:
         print(f"Failed to initialize CDP: {e}")
@@ -39,24 +32,31 @@ async def main():
     # 3. Initialize Wallet/Account
     print("Initializing Agent Wallet...")
     try:
-        # Use the client to create an account (async)
-        agent_account = await client.evm.create_account()
-        print(f"Agent Address: {agent_account.address}")
+        # Step A: Use eth_account for a local wallet
+        from eth_account import Account
+        # Enable Mnemonic features if needed, but simple create is fine
+        agent_account = Account.create()
+        print(f"Agent Created Locally! Address: {agent_account.address}")
     except Exception as e:
-        print(f"Failed to create wallet: {e}")
+        print(f"Failed to create local wallet: {e}")
         return
 
     # 4. Fund the Wallet (Dev Only)
-    print("Checking Balance...")
+    print("Checking Balance & Requesting Faucet...")
     try:
         # Request testnet funds (async)
-        faucet_tx = await agent_account.request_faucet()
-        print(f"Faucet Requested. Tx: {faucet_tx}")
+        faucet_tx = await client.evm.request_faucet(
+            address=agent_account.address,
+            network="base-sepolia",
+            token="eth"
+        )
+        print(f"Faucet Requested. Transaction: {faucet_tx}")
         # Wait for funds to arrive
-        print("Waiting 10s for faucet transaction...")
-        await asyncio.sleep(10) 
+        print("Waiting 20s for faucet transaction to clear on-chain...")
+        await asyncio.sleep(20) 
+        print("Wait complete. Proceeding to attestation...")
     except Exception as e:
-        print(f"Faucet skipped or failed (might have funds already): {e}")
+        print(f"Faucet skipped or failed: {e}")
 
     # 5. Load Proof
     proof_file = "minimax_session.json"
@@ -74,7 +74,8 @@ async def main():
     print(f"Loaded Merkle Root: {merkle_root}")
 
     # 6. Attest
-    attestor = VeritasAttestor(agent_account, network_id="base-sepolia")
+    # Pass both client and account to the attestor
+    attestor = VeritasAttestor(client, agent_account, network_id="base-sepolia")
     
     try:
         # Note: attestor.py needs to be checked for async as well
