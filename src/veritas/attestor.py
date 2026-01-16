@@ -1,5 +1,6 @@
 from eth_abi import encode
 from typing import Optional, Dict, Any
+from web3 import Web3
 import time
 
 # EAS Contract Addresses on Base Sepolia
@@ -26,7 +27,6 @@ class VeritasAttestor:
         
         try:
             # We are using a local account (eth_account), so we must sign locally and broadcast via Web3.
-            from web3 import Web3
             
             # Public Base Sepolia RPC
             w3 = Web3(Web3.HTTPProvider("https://base-sepolia-rpc.publicnode.com"))
