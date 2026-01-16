@@ -76,10 +76,14 @@ class VeritasLogger:
 
     def export_proofs(self, filepath: str):
         """Export the full session proof package to a JSON file."""
+        # Calculate actual hashes for the leaves to store as "expected state"
+        leaf_hashes = [self._merkle_tree._hash(leaf) for leaf in self._merkle_tree.leaves]
+        
         data = {
             "session_root": self.get_current_root(),
             "event_count": len(self._logs),
             "timestamp": time.time(),
+            "leaf_hashes": leaf_hashes,
             "logs": [log.model_dump(mode='json') for log in self._logs]
         }
         with open(filepath, "w") as f:
