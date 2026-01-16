@@ -22,7 +22,6 @@ DESIGN.md
 
 
 # Generated proofs
-
-
-
 session_proof.json
+agent_session.json
+minimax_session.json
