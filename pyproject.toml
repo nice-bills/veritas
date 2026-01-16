@@ -9,6 +9,12 @@ dependencies = [
     "cryptography>=46.0.3",
     "eth-abi>=5.2.0",
     "eth-account>=0.13.7",
-    "pydantic>=2.12.5",
-    "python-dotenv>=1.2.1",
-]
+        "pydantic>=2.12.5",
+        "python-dotenv>=1.2.1",
+        "rich>=14.2.0",
+        "typer>=0.21.1",
+    ]
+    
+    [project.scripts]
+    veritas = "veritas.cli:app"
+    
