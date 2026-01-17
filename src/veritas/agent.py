@@ -76,29 +76,34 @@ class VeritasAgent:
             self.tools[tool.name] = tool
         print(f"[VeritasAgent] Loaded capability: {capability.name} ({len(capability.get_tools())} tools)")
 
-    def call_tool(self, tool_name: str, **kwargs):
+    async def call_tool(self, tool_name: str, **kwargs):
         """Execute a tool by name with automatic auditing."""
         if tool_name not in self.tools:
             raise ValueError(f"Tool not found: {tool_name}")
         
         tool = self.tools[tool_name]
-        return self.execute_action(tool_name, tool.func, **kwargs)
+        return await self.execute_action(tool_name, tool.func, **kwargs)
 
     async def shutdown(self):
         """Clean up connections."""
         await self.client.close()
 
-    def execute_action(self, tool_name: str, func: callable, *args, **kwargs):
+    async def execute_action(self, tool_name: str, func: Callable, *args, **kwargs):
         """
         Execute a tool action with automatic logging and evidence linking.
+        Supports both sync and async functions.
         """
         basis_id = self.logger.last_event_id
         
-        @self.logger.wrap(event_type="ACTION", tool_name=tool_name)
-        def _exec():
-            return func(*args, **kwargs)
-            
-        return _exec(basis_id=basis_id)
+        # We use the logger's wrap feature directly to handle the sync/async logic
+        wrapped = self.logger.wrap(func, tool_name=tool_name, event_type="ACTION")
+        
+        import inspect
+        # wrapped will be a coroutine if func was a coroutine function
+        if inspect.iscoroutinefunction(wrapped):
+            return await wrapped(*args, basis_id=basis_id, **kwargs)
+        else:
+            return wrapped(*args, basis_id=basis_id, **kwargs)
 
     async def run_mission(self, objective: str):
         """
@@ -126,10 +131,10 @@ class VeritasAgent:
 
         # 3. Act
         if "ACT" in decision.upper():
-            def execute_step():
+            async def execute_step():
                 return {"status": "success", "detail": "Action executed based on reasoning"}
             
-            self.execute_action("execute_mission_step", execute_step)
+            await self.execute_action("execute_mission_step", execute_step)
         else:
             print("[VeritasAgent] Decided to wait.")
 

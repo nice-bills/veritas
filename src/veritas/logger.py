@@ -93,30 +93,50 @@ class VeritasLogger:
     def wrap(self, func: Optional[Callable] = None, *, tool_name: str = None, event_type: str = "ACTION"):
         """
         Decorator to automatically audit a function call.
-        Can be used as @wrap or @wrap(event_type="OBSERVATION").
+        Supports both sync and async functions.
         """
+        import asyncio
+        import inspect
+
         def decorator(f: Callable):
             name = tool_name or f.__name__
             
-            def wrapper(*args, **kwargs):
-                # Capture Input
-                basis_id = kwargs.pop("basis_id", None)
-                try:
-                    params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
-                except Exception:
-                    params = {"args": "unserializable", "kwargs": "unserializable"}
-                
-                # Execute Real Action
-                result = f(*args, **kwargs)
-                
-                # Log Result
-                try:
-                    res_serializable = str(result)
-                except:
-                    res_serializable = "unserializable_result"
+            if inspect.iscoroutinefunction(f):
+                async def wrapper(*args, **kwargs):
+                    basis_id = kwargs.pop("basis_id", None)
+                    try:
+                        params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
+                    except Exception:
+                        basis_id = None
+                        params = {"args": "unserializable", "kwargs": "unserializable"}
                     
-                self.log_action(name, params, res_serializable, event_type=event_type, basis_id=basis_id)
-                return result
+                    result = await f(*args, **kwargs)
+                    
+                    try:
+                        res_serializable = str(result)
+                    except:
+                        res_serializable = "unserializable_result"
+                        
+                    self.log_action(name, params, res_serializable, event_type=event_type, basis_id=basis_id)
+                    return result
+            else:
+                def wrapper(*args, **kwargs):
+                    basis_id = kwargs.pop("basis_id", None)
+                    try:
+                        params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
+                    except Exception:
+                        basis_id = None
+                        params = {"args": "unserializable", "kwargs": "unserializable"}
+                    
+                    result = f(*args, **kwargs)
+                    
+                    try:
+                        res_serializable = str(result)
+                    except:
+                        res_serializable = "unserializable_result"
+                        
+                    self.log_action(name, params, res_serializable, event_type=event_type, basis_id=basis_id)
+                    return result
             return wrapper
 
         if func is None:
