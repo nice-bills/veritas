@@ -6,6 +6,7 @@ class AgentCreate(BaseModel):
     brain_provider: str = "minimax"
     network: str = "base-sepolia"
     private_key: Optional[str] = None
+    capabilities: List[str] = ["wallet"] # List of caps to load: ['wallet', 'trading', 'social']
     # User-provided keys
     cdp_api_key_id: Optional[str] = None
     cdp_api_key_secret: Optional[str] = None

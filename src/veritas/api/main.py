@@ -35,6 +35,18 @@ async def create_agent(config: AgentCreate):
             cdp_api_key_secret=config.cdp_api_key_secret,
             minimax_api_key=config.minimax_api_key
         )
+        
+        # Load capabilities
+        from ..tools import WalletCapability, TradeCapability
+        CAP_MAP = {
+            "wallet": WalletCapability,
+            "trading": TradeCapability
+        }
+        
+        for cap_name in config.capabilities:
+            if cap_name in CAP_MAP:
+                agent.load_capability(CAP_MAP[cap_name](agent))
+                
         active_agents[agent_id] = agent
         return {
             "id": agent_id,
