@@ -1,18 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #09090b;
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
-@layer base {
-  body {
-    background-color: #09090b;
-    color: #f8fafc;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
+:root {
+  --background: #09090b;
+  --foreground: #f8fafc;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 .terminal-glow {
