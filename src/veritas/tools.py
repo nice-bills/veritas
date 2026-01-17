@@ -41,3 +41,33 @@ class WalletCapability(VeritasCapability):
         wei = self.agent.w3.eth.get_balance(self.agent.account.address)
         eth = self.agent.w3.from_wei(wei, 'ether')
         return {"balance_eth": float(eth), "address": self.agent.account.address}
+
+class TradeCapability(VeritasCapability):
+    """
+    Advanced trading operations: swaps, price quotes.
+    Uses the VeritasAdapter to wrap CDP SDK actions.
+    """
+    def __init__(self, agent: Any):
+        super().__init__("trading")
+        self.agent = agent
+        from .adapter import VeritasAdapter
+        
+        # 1. Price Quote Tool
+        self.tools.append(VeritasAdapter.to_tool(
+            agent=self.agent,
+            func=self.agent.client.evm.get_swap_price,
+            name="get_swap_price",
+            description="Get a price quote for swapping two tokens.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "from_token": {"type": "string", "description": "Token to swap from"},
+                    "to_token": {"type": "string", "description": "Token to swap to"},
+                    "amount": {"type": "string", "description": "Amount to swap"}
+                },
+                "required": ["from_token", "to_token", "amount"]
+            }
+        ))
+
+        # 2. Swap Tool
+        # In a real app, we'd add more tools like execute_swap here
