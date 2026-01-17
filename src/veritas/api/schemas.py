@@ -6,6 +6,10 @@ class AgentCreate(BaseModel):
     brain_provider: str = "minimax"
     network: str = "base-sepolia"
     private_key: Optional[str] = None
+    # User-provided keys
+    cdp_api_key_id: Optional[str] = None
+    cdp_api_key_secret: Optional[str] = None
+    minimax_api_key: Optional[str] = None
 
 class MissionRequest(BaseModel):
     objective: str

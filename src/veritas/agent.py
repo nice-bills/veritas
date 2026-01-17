@@ -18,14 +18,17 @@ class VeritasAgent:
         name: str,
         brain_provider: str = "minimax",
         network: str = "base-sepolia",
-        private_key: Optional[str] = None
+        private_key: Optional[str] = None,
+        cdp_api_key_id: Optional[str] = None,
+        cdp_api_key_secret: Optional[str] = None,
+        minimax_api_key: Optional[str] = None
     ):
         self.name = name
         self.network = network
         self.logger = VeritasLogger()
         
         # Brain
-        self.brain = BrainFactory.create(brain_provider)
+        self.brain = BrainFactory.create(brain_provider, api_key=minimax_api_key)
         
         # Identity
         if private_key:
@@ -34,6 +37,10 @@ class VeritasAgent:
             self.account = Account.create()
             
         # Infrastructure
+        # Ensure CDP credentials are in env if passed explicitly
+        if cdp_api_key_id: os.environ["CDP_API_KEY_ID"] = cdp_api_key_id
+        if cdp_api_key_secret: os.environ["CDP_API_KEY_SECRET"] = cdp_api_key_secret
+        
         self.client = CdpClient()
         self.attestor = VeritasAttestor(self.client, self.account, network_id=network)
         

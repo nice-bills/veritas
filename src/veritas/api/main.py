@@ -30,7 +30,10 @@ async def create_agent(config: AgentCreate):
             name=config.name,
             brain_provider=config.brain_provider,
             network=config.network,
-            private_key=config.private_key
+            private_key=config.private_key,
+            cdp_api_key_id=config.cdp_api_key_id,
+            cdp_api_key_secret=config.cdp_api_key_secret,
+            minimax_api_key=config.minimax_api_key
         )
         active_agents[agent_id] = agent
         return {
