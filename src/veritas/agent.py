@@ -4,6 +4,7 @@ import asyncio
 from .logger import VeritasLogger
 from .attestor import VeritasAttestor
 from .brain import BrainFactory
+from .tools import VeritasCapability, VeritasTool, WalletCapability
 from eth_account import Account
 from cdp import CdpClient
 from web3 import Web3
@@ -26,6 +27,8 @@ class VeritasAgent:
         self.name = name
         self.network = network
         self.logger = VeritasLogger()
+        self.capabilities: Dict[str, VeritasCapability] = {}
+        self.tools: Dict[str, VeritasTool] = {}
         
         # Brain
         self.brain = BrainFactory.create(brain_provider, api_key=minimax_api_key)
@@ -65,6 +68,21 @@ class VeritasAgent:
             # We don't raise error here to allow offline testing if needed
         
         print(f"[VeritasAgent] Initialized '{name}' on {network} | Address: {self.account.address}")
+
+    def load_capability(self, capability: VeritasCapability):
+        """Register a capability and its tools with the agent."""
+        self.capabilities[capability.name] = capability
+        for tool in capability.get_tools():
+            self.tools[tool.name] = tool
+        print(f"[VeritasAgent] Loaded capability: {capability.name} ({len(capability.get_tools())} tools)")
+
+    def call_tool(self, tool_name: str, **kwargs):
+        """Execute a tool by name with automatic auditing."""
+        if tool_name not in self.tools:
+            raise ValueError(f"Tool not found: {tool_name}")
+        
+        tool = self.tools[tool_name]
+        return self.execute_action(tool_name, tool.func, **kwargs)
 
     async def shutdown(self):
         """Clean up connections."""
