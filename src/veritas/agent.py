@@ -4,8 +4,18 @@ import asyncio
 from .logger import VeritasLogger
 from .attestor import VeritasAttestor
 from .brain import BrainFactory
-from .tools import VeritasCapability, VeritasTool, WalletCapability
+from .tools import (
+    VeritasCapability, 
+    VeritasTool, 
+    WalletCapability, 
+    TradeCapability,
+    ERC20Capability,
+    DataCapability,
+    SocialCapability,
+    IdentityCapability
+)
 from eth_account import Account
+
 from cdp import CdpClient
 from web3 import Web3
 
