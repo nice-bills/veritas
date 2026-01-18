@@ -12,9 +12,14 @@ from .tools import (
     ERC20Capability,
     DataCapability,
     SocialCapability,
-    IdentityCapability
+    IdentityCapability,
+    PaymentCapability,
+    CreatorCapability,
+    PrivacyCapability,
+    DeFiCapability
 )
 from eth_account import Account
+
 
 from cdp import CdpClient
 from web3 import Web3

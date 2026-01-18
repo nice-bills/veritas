@@ -38,9 +38,26 @@ async def create_agent(config: AgentCreate):
         
         # Load capabilities
         from ..tools import WalletCapability, TradeCapability
+        from ..tools.erc20 import ERC20Capability
+        from ..tools.data import DataCapability
+        from ..tools.social import SocialCapability
+        from ..tools.identity import IdentityCapability
+        from ..tools.payments import PaymentCapability
+        from ..tools.wow import CreatorCapability
+        from ..tools.nillion import PrivacyCapability
+        from ..tools.defi import DeFiCapability
+        
         CAP_MAP = {
             "wallet": WalletCapability,
-            "trading": TradeCapability
+            "trading": TradeCapability,
+            "erc20": ERC20Capability,
+            "data": DataCapability,
+            "social": SocialCapability,
+            "identity": IdentityCapability,
+            "payments": PaymentCapability,
+            "creator": CreatorCapability,
+            "privacy": PrivacyCapability,
+            "defi": DeFiCapability
         }
         
         for cap_name in config.capabilities:
