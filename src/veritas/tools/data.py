@@ -31,8 +31,8 @@ class DataCapability(VeritasCapability):
         # Clean ID
         if not price_id.startswith("0x"): price_id = "0x" + price_id
         
-        # Pyth getPrice returns (price, conf, expo, publishTime)
-        data = contract.functions.getPrice(bytes.fromhex(price_id[2:])).call()
+        # Try getPriceUnsafe which is better for testnets
+        data = contract.functions.getPriceUnsafe(bytes.fromhex(price_id[2:])).call()
         
         # Parse struct
         # Output: (price, conf, expo, timestamp)

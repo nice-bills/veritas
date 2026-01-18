@@ -59,8 +59,10 @@ class VeritasAgent:
         
         # RPC Setup
         rpc_urls = [
+            "https://base-sepolia-rpc.publicnode.com",
             "https://sepolia.base.org",
-            "https://base-sepolia-rpc.publicnode.com"
+            "https://base-sepolia.gateway.tenderly.co",
+            "https://184532.rpc.thirdweb.com"
         ]
         self.w3 = None
         for url in rpc_urls:
