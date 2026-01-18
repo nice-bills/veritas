@@ -31,6 +31,7 @@ class VeritasLogger:
         self._logs: List[ActionLog] = []
         self._merkle_tree = MerkleTree()
         self.last_event_id: Optional[str] = None
+        self.listeners: List[Callable[[ActionLog], None]] = []
 
     def log_action(
         self, 
@@ -53,6 +54,13 @@ class VeritasLogger:
         
         # Add to Merkle Tree
         self._merkle_tree.add_leaf(entry.to_hashable_json())
+        
+        # Notify Listeners
+        for listener in self.listeners:
+            try:
+                listener(entry)
+            except Exception:
+                pass
         
         print(f"[Veritas] Recorded {event_type}: {tool_name} | Root: {self.get_current_root()[:8]}...")
         return entry
@@ -103,11 +111,10 @@ class VeritasLogger:
             
             if inspect.iscoroutinefunction(f):
                 async def wrapper(*args, **kwargs):
-                    basis_id = kwargs.pop("basis_id", None)
+                    basis_id = kwargs.pop("basis_id", self.last_event_id)
                     try:
                         params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
                     except Exception:
-                        basis_id = None
                         params = {"args": "unserializable", "kwargs": "unserializable"}
                     
                     result = await f(*args, **kwargs)
@@ -121,11 +128,10 @@ class VeritasLogger:
                     return result
             else:
                 def wrapper(*args, **kwargs):
-                    basis_id = kwargs.pop("basis_id", None)
+                    basis_id = kwargs.pop("basis_id", self.last_event_id)
                     try:
                         params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
                     except Exception:
-                        basis_id = None
                         params = {"args": "unserializable", "kwargs": "unserializable"}
                     
                     result = f(*args, **kwargs)

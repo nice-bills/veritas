@@ -1,5 +1,6 @@
 from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field
+from decimal import Decimal
 
 class VeritasTool(BaseModel):
     """
@@ -23,24 +24,79 @@ class VeritasCapability:
 
 class WalletCapability(VeritasCapability):
     """
-    Basic wallet operations: balance, transfer.
+    Basic wallet operations: balance, native transfer, details.
     """
     def __init__(self, agent: Any):
         super().__init__("wallet")
         self.agent = agent
         
-        # Add Balance Tool
+        # Get Wallet Details
+        self.tools.append(VeritasTool(
+            name="get_wallet_details",
+            description="Get details of the connected wallet (address, network, balance).",
+            func=self.get_wallet_details,
+            parameters={"type": "object", "properties": {}}
+        ))
+
+        # Get Native Balance
         self.tools.append(VeritasTool(
             name="get_balance",
-            description="Get the current ETH balance of the agent's wallet.",
+            description="Get the native currency balance (ETH) of the wallet.",
             func=self.get_balance,
             parameters={"type": "object", "properties": {}}
         ))
+
+        # Native Transfer
+        self.tools.append(VeritasTool(
+            name="native_transfer",
+            description="Transfer native tokens (ETH) to another address.",
+            func=self.native_transfer,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "to": {"type": "string", "description": "Destination address"},
+                    "value": {"type": "string", "description": "Amount to transfer in whole units (e.g. '0.5')"}
+                },
+                "required": ["to", "value"]
+            }
+        ))
+
+    def get_wallet_details(self) -> str:
+        addr = self.agent.account.address
+        net = self.agent.network
+        bal_data = self.get_balance()
+        bal = bal_data['balance_eth']
+        return f"""Wallet Details:
+- Address: {addr}
+- Network: {net}
+- Native Balance: {bal} ETH"""
 
     def get_balance(self) -> Dict[str, Any]:
         wei = self.agent.w3.eth.get_balance(self.agent.account.address)
         eth = self.agent.w3.from_wei(wei, 'ether')
         return {"balance_eth": float(eth), "address": self.agent.account.address}
+
+    def native_transfer(self, to: str, value: str) -> str:
+        w3 = self.agent.w3
+        wei_value = w3.to_wei(Decimal(value), 'ether')
+        
+        # Determine chainId from network string
+        network_id = getattr(self.agent, 'network', 'base-sepolia')
+        chain_id = 84532 if 'sepolia' in network_id else 8453
+        
+        tx = {
+            'to': w3.to_checksum_address(to),
+            'value': wei_value,
+            'gas': 21000,
+            'gasPrice': w3.eth.gas_price,
+            'nonce': w3.eth.get_transaction_count(self.agent.account.address),
+            'chainId': chain_id
+        }
+        
+        signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        
+        return f"Transferred {value} ETH to {to}. Hash: {w3.to_hex(tx_hash)}"
 
 class TradeCapability(VeritasCapability):
     """
@@ -50,7 +106,7 @@ class TradeCapability(VeritasCapability):
     def __init__(self, agent: Any):
         super().__init__("trading")
         self.agent = agent
-        from .adapter import VeritasAdapter # This will now be relative
+        from .adapter import VeritasAdapter 
         
         # 1. Price Quote Tool
         self.tools.append(VeritasAdapter.to_tool(

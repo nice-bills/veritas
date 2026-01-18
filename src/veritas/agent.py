@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Callable
 import os
+import json
 import asyncio
 from .logger import VeritasLogger
 from .attestor import VeritasAttestor
@@ -9,18 +10,21 @@ from .tools import (
     VeritasTool, 
     WalletCapability, 
     TradeCapability,
-    ERC20Capability,
+    TokenCapability,
+    ERC721Capability,
+    BasenameCapability,
     DataCapability,
     SocialCapability,
     IdentityCapability,
     PaymentCapability,
     CreatorCapability,
     PrivacyCapability,
-    DeFiCapability
+    AaveCapability,
+    CompoundCapability,
+    PythCapability,
+    OnrampCapability
 )
 from eth_account import Account
-
-
 from cdp import CdpClient
 from web3 import Web3
 
@@ -103,7 +107,8 @@ class VeritasAgent:
 
     async def shutdown(self):
         """Clean up connections."""
-        await self.client.close()
+        if hasattr(self.client, 'close'):
+            await self.client.close()
 
     async def execute_action(self, tool_name: str, func: Callable, *args, **kwargs):
         """
@@ -122,40 +127,103 @@ class VeritasAgent:
         else:
             return wrapped(*args, basis_id=basis_id, **kwargs)
 
-    async def run_mission(self, objective: str):
+    async def run_mission(self, objective: str, max_steps: int = 5):
         """
-        Execute a mission: Observe -> Think -> Act.
-        Automatically logs and audits every step.
+        Execute a mission autonomously: Observe -> Think -> Act (Loop).
+        The LLM chooses tools from the registry to satisfy the objective.
         """
-        print(f"[VeritasAgent] Starting mission: {objective}")
-
-        # 1. Observe (Example: Check balance)
-        @self.logger.wrap(event_type="OBSERVATION", tool_name="check_balance")
-        def check_balance():
-            wei = self.w3.eth.get_balance(self.account.address)
-            return {"balance_eth": float(self.w3.from_wei(wei, 'ether'))}
-
-        state = check_balance()
-        obs_id = self.logger.last_event_id
-        print(f"[VeritasAgent] Observation: {state}")
-
-        # 2. Think
-        system_prompt = f"You are an agent named {self.name}. Objective: {objective}. Output only 'ACT' or 'WAIT'."
-        user_prompt = f"Current State: {state}"
+        print(f"[VeritasAgent] Starting autonomous mission: {objective}")
         
-        decision = self.brain.think(system_prompt, user_prompt)
-        print(f"[VeritasAgent] Brain Decision: {decision}")
+        current_step = 0
+        while current_step < max_steps:
+            current_step += 1
+            print(f"\n[VeritasAgent] --- Step {current_step} ---")
 
-        # 3. Act
-        if "ACT" in decision.upper():
-            async def execute_step():
-                return {"status": "success", "detail": "Action executed based on reasoning"}
+            # 1. Prepare context (Available Tools + History)
+            tool_descriptions = [
+                {"name": t.name, "description": t.description, "parameters": t.parameters}
+                for t in self.tools.values()
+            ]
             
-            await self.execute_action("execute_mission_step", execute_step)
-        else:
-            print("[VeritasAgent] Decided to wait.")
+            recent_logs = [log.model_dump(mode='json') for log in self.logger.get_logs()[-3:]]
+            
+            system_prompt = f"""You are an autonomous crypto agent named {self.name}.
+Objective: {objective}
 
-        # 4. Audit
+AVAILABLE TOOLS:
+{json.dumps(tool_descriptions, indent=2)}
+
+INSTRUCTIONS:
+1. Analyze the current state and history.
+2. Decide the next tool to call.
+3. Output ONLY a valid JSON object in this format. Do not include any other text.
+{{
+  "thought": "your reasoning",
+  "tool": "tool_name",
+  "params": {{ "param_name": "value" }},
+  "finished": true/false
+}}
+If the objective is complete, set "finished": true.
+If you need to check a balance, use 'get_balance' or 'erc20_balance'.
+If you need a Pyth Price Feed ID:
+- ETH/USD: 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace
+- USDC/USD: 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a"""
+
+            user_prompt = f"History: {json.dumps(recent_logs)}"
+            
+            # 2. Think
+            response_text = self.brain.think(system_prompt, user_prompt)
+            print(f"[VeritasAgent] Brain Thought: {response_text}")
+            
+            # Log the thought
+            print("[VeritasAgent] Logging thought...")
+            try:
+                self.logger.log_action("Brain", {"objective": objective}, response_text, event_type="THOUGHT", basis_id=self.logger.last_event_id)
+                print("[VeritasAgent] Thought logged.")
+            except Exception as e:
+                print(f"[VeritasAgent] Logging Failed: {e}")
+                # Don't crash, proceed to parse
+            
+            try:
+                # Robust parsing logic
+                clean_json = response_text.strip()
+                
+                # Strip Markdown code blocks if present
+                if "```" in clean_json:
+                    clean_json = clean_json.split("```json")[-1].split("```")[0]
+                    if "```" in clean_json: # Handle case where json wasn't specified
+                         clean_json = clean_json.split("```")[1]
+                
+                # Attempt to find JSON object boundaries if there is extra text
+                start_idx = clean_json.find('{')
+                end_idx = clean_json.rfind('}')
+                
+                if start_idx != -1 and end_idx != -1:
+                    clean_json = clean_json[start_idx:end_idx+1]
+                
+                decision = json.loads(clean_json)
+            except Exception as e:
+                print(f"[VeritasAgent] Failed to parse decision: {e}")
+                # Log parsing error as a thought/observation to help the agent recover?
+                self.logger.log_action("System", {"error": str(e), "raw_output": response_text}, "JSON Parsing Failed", event_type="ERROR")
+                break
+
+            # 3. Act
+            if decision.get("finished"):
+                print("[VeritasAgent] Objective reached.")
+                break
+                
+            tool_name = decision.get("tool")
+            if tool_name and tool_name in self.tools:
+                params = decision.get("params", {})
+                print(f"[VeritasAgent] Executing tool: {tool_name} with {params}")
+                await self.call_tool(tool_name, **params)
+            else:
+                print(f"[VeritasAgent] Invalid tool or no action: {tool_name}")
+                # If no tool, maybe provide a default observation to keep the loop alive?
+                # For now, we'll just increment step.
+
+        # 4. Final Audit
         root = self.logger.get_current_root()
-        print(f"[VeritasAgent] Session Root: {root}")
+        print(f"\n[VeritasAgent] Mission Terminated. Session Root: {root}")
         return root
