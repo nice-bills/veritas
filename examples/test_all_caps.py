@@ -1,58 +1,49 @@
 import asyncio
 import os
 from veritas.agent import VeritasAgent
-from veritas.tools.erc20 import ERC20Capability
-from veritas.tools.data import DataCapability
-from veritas.tools.social import SocialCapability
-from veritas.tools.identity import IdentityCapability
+from veritas.tools import (
+    ERC20Capability, DataCapability, SocialCapability, IdentityCapability,
+    PaymentCapability, CreatorCapability, PrivacyCapability, DeFiCapability
+)
 from dotenv import load_dotenv
 
 load_dotenv()
 
 async def main():
-    print("Veritas Full Capability Gauntlet")
-    print("--------------------------------")
+    print("Veritas FULL Platform Gauntlet")
+    print("------------------------------")
     
-    agent = VeritasAgent(name="GauntletAgent")
+    agent = VeritasAgent(name="FullPlatformAgent")
     
-    # 1. Load All Caps
+    # Load everything
     agent.load_capability(ERC20Capability(agent))
     agent.load_capability(DataCapability(agent))
     agent.load_capability(SocialCapability(agent))
     agent.load_capability(IdentityCapability(agent))
+    agent.load_capability(PaymentCapability(agent))
+    agent.load_capability(CreatorCapability(agent))
+    agent.load_capability(PrivacyCapability(agent))
+    agent.load_capability(DeFiCapability(agent))
     
-    print("\n--- 1. Testing ERC20 (USDC) ---")
-    try:
-        # USDC on Base Sepolia
-        usdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" 
-        bal = await agent.call_tool("erc20_balance", token_address=usdc)
-        print(f"USDC Balance: {bal}")
-    except Exception as e:
-        print(f"ERC20 Failed: {e}")
+    print("\n--- Testing New Capabilities ---")
+    
+    # DeFi
+    yield_tx = await agent.call_tool("supply_asset", asset="USDC", amount=100, protocol="aave")
+    print(f"DeFi: {yield_tx['status']} ({yield_tx['protocol']})")
 
-    print("\n--- 2. Testing Pyth (ETH/USD) ---")
-    try:
-        # ETH/USD Price ID
-        eth_feed = "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"
-        price = await agent.call_tool("get_price", price_id=eth_feed)
-        print(f"ETH Price: ${price['price']}")
-    except Exception as e:
-        print(f"Pyth Failed: {e}")
+    # x402
+    pay = await agent.call_tool("pay_api_request", url="https://api.premium.com", amount_usdc=0.5)
+    print(f"Payment: {pay['status']}")
+    
+    # Wow
+    coin = await agent.call_tool("launch_token", name="VeritasCoin", symbol="VRT")
+    print(f"Token: {coin['status']} at {coin['token_address'][:10]}...")
+    
+    # Privacy
+    secret = await agent.call_tool("store_secret", secret_name="agent_key", secret_value="shhh")
+    print(f"Privacy: {secret['status']} (ID: {secret['store_id'][:10]}...)")
 
-    print("\n--- 3. Testing Social (Twitter) ---")
-    try:
-        tweet = await agent.call_tool("post_tweet", text="Hello from Veritas Agent!")
-        print(f"Tweet Status: {tweet['status']}")
-    except Exception as e:
-        print(f"Social Failed: {e}")
-
-    print("\n--- 4. Testing Identity (Basename) ---")
-    try:
-        name = await agent.call_tool("register_name", name="veritas-test")
-        print(f"Identity Status: {name['status']}")
-    except Exception as e:
-        print(f"Identity Failed: {e}")
-
+    print("\nFinal Audit Trail Length:", len(agent.logger.get_logs()))
     await agent.shutdown()
 
 if __name__ == "__main__":
