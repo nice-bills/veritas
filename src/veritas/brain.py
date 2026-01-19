@@ -1,10 +1,10 @@
 import os
-import requests
+import httpx
 from typing import List, Dict, Any, Optional
 
 class MiniMaxBrain:
     """
-    MiniMax M2.1 implementation for agent reasoning.
+    MiniMax M2.1 implementation for agent reasoning (Async).
     """
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("MINIMAX_API_KEY")
@@ -13,9 +13,9 @@ class MiniMaxBrain:
         if not self.api_key:
             raise ValueError("MINIMAX_API_KEY is required for MiniMaxBrain")
 
-    def think(self, system_prompt: str, user_prompt: str) -> str:
+    async def think(self, system_prompt: str, user_prompt: str) -> str:
         """
-        Send a prompt to MiniMax and return the reasoned decision.
+        Send a prompt to MiniMax and return the reasoned decision asynchronously.
         """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -32,19 +32,20 @@ class MiniMaxBrain:
         }
 
         try:
-            # Added timeout to prevent hanging
-            response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-            content = response.json()['choices'][0]['message']['content']
-            
-            # Strip thinking blocks if present
-            if "</think>" in content:
-                content = content.split("</think>")[-1].strip()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.base_url, headers=headers, json=payload, timeout=30.0)
+                response.raise_for_status()
+                data = response.json()
+                content = data['choices'][0]['message']['content']
                 
-            return content.strip()
-        except requests.Timeout:
+                # Strip thinking blocks if present
+                if "</think>" in content:
+                    content = content.split("</think>")[-1].strip()
+                    
+                return content.strip()
+        except httpx.TimeoutException:
             raise TimeoutError("MiniMax API timeout after 30s")
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             raise ConnectionError(f"MiniMax API error: {e.response.status_code} - {e.response.text}")
         except Exception as e:
             raise RuntimeError(f"MiniMaxBrain failure: {e}")
