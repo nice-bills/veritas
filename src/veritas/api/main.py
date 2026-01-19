@@ -1,8 +1,12 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from .schemas import AgentCreate, MissionRequest, AgentResponse, MissionResponse
 from ..agent import VeritasAgent
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import uuid
 import json
 import asyncio
@@ -12,12 +16,21 @@ from typing import Dict, List
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="Veritas Agent OS API")
+# Rate Limiter Setup
+limiter = Limiter(key_func=get_remote_address)
 
-# Enable CORS for React Frontend
+app = FastAPI(title="Veritas Agent OS API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# CORS Configuration
+# In production, set CORS_ORIGINS="https://your-frontend.vercel.app"
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,7 +68,8 @@ async def root():
     return {"status": "online", "version": "0.1.0"}
 
 @app.post("/agents", response_model=AgentResponse)
-async def create_agent(config: AgentCreate):
+@limiter.limit("5/minute")
+async def create_agent(request: Request, config: AgentCreate):
     # 0. Safety Guardrail
     if config.network != "base-sepolia" and not os.getenv("ENABLE_MAINNET"):
         raise HTTPException(status_code=400, detail="Mainnet deployment is currently disabled for beta. Use 'base-sepolia'.")
@@ -84,14 +98,12 @@ async def create_agent(config: AgentCreate):
                         network="base-sepolia",
                         token="eth"
                     )
-                    # Small wait for faucet to broadcast (don't block too long)
                     await asyncio.sleep(2) 
             except Exception as fe:
                 print(f"[API] Faucet skipped: {fe}")
 
         # 2. Setup Real-Time Log Listener
         def on_new_log(log_entry):
-            # We wrap the broadcast in an async task
             asyncio.create_task(manager.broadcast(agent_id, log_entry.model_dump(mode='json')))
         
         agent.logger.listeners.append(on_new_log)
@@ -114,8 +126,8 @@ async def create_agent(config: AgentCreate):
         }
         CAP_MAP["erc20"] = TokenCapability
         CAP_MAP["defi"] = AaveCapability
-        CAP_MAP["data"] = PythCapability # Alias
-        CAP_MAP["identity"] = BasenameCapability # Alias
+        CAP_MAP["data"] = PythCapability
+        CAP_MAP["identity"] = BasenameCapability
         
         for cap_name in config.capabilities:
             if cap_name in CAP_MAP:
@@ -136,25 +148,24 @@ async def websocket_endpoint(websocket: WebSocket, agent_id: str):
     await manager.connect(agent_id, websocket)
     try:
         while True:
-            # Keep connection alive
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(agent_id, websocket)
 
 @app.post("/agents/{agent_id}/run", response_model=MissionResponse)
-async def run_mission(agent_id: str, request: MissionRequest):
+@limiter.limit("10/minute")
+async def run_mission(request: Request, agent_id: str, mission_req: MissionRequest):
     if agent_id not in active_agents:
         raise HTTPException(status_code=404, detail="Agent not found")
     
     agent = active_agents[agent_id]
     try:
         # 1. Run Mission
-        root = await agent.run_mission(request.objective)
+        root = await agent.run_mission(mission_req.objective)
         
         # 2. On-Chain Attestation
         tx_hash = await agent.attestor.attest_root(
             merkle_root=root,
-            schema_uid="0x4ee2145e253098e581a38bdbb7f7c81eae64b6d9d5868063c71b562779056441",
             agent_id=agent.name
         )
         
