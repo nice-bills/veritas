@@ -4,36 +4,76 @@ from .base import VeritasCapability, VeritasTool
 from .constants import (
     AAVE_POOL_ABI, AAVE_POOL_ADDRESSES,
     COMET_ABI, COMET_ADDRESSES,
-    TOKEN_ADDRESSES_BY_SYMBOLS
+    TOKEN_ADDRESSES_BY_SYMBOLS, ERC20_ABI
 )
 from decimal import Decimal
 
-class AaveCapability(VeritasCapability):
+class DeFiCapability(VeritasCapability):
+    """
+    Base class for DeFi protocols with shared safety features.
+    """
+    def __init__(self, name: str, agent: Any):
+        super().__init__(name)
+        self.agent = agent
+
+    def _get_decimals(self, token_address: str) -> int:
+        """Fetch decimals from the ERC20 contract."""
+        try:
+            contract = self.agent.w3.eth.contract(
+                address=self.agent.w3.to_checksum_address(token_address), 
+                abi=ERC20_ABI
+            )
+            return contract.functions.decimals().call()
+        except Exception:
+            return 18  # Fallback
+
+    def _simulate_and_send(self, tx_params: dict) -> str:
+        """Simulate a transaction and then sign/send if successful."""
+        w3 = self.agent.w3
+        
+        # 1. Simulate
+        try:
+            w3.eth.call(tx_params)
+        except Exception as e:
+            raise Exception(f"Transaction simulation failed: {e}")
+
+        # 2. Build remaining params
+        tx_params.update({
+            'gas': 300000, # Base buffer
+            'gasPrice': w3.eth.gas_price,
+            'nonce': w3.eth.get_transaction_count(self.agent.account.address),
+        })
+
+        # 3. Sign and Send
+        signed = w3.eth.account.sign_transaction(tx_params, self.agent.account.key)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        return w3.to_hex(tx_hash)
+
+class AaveCapability(DeFiCapability):
     """
     Interact with Aave V3 (Supply, Withdraw, Borrow, Repay).
     """
     def __init__(self, agent: Any):
-        super().__init__("aave")
-        self.agent = agent
+        super().__init__("aave", agent)
         
         self.tools.append(VeritasTool(
             name="aave_supply",
-            description="Supply assets to Aave V3.",
+            description="Supply assets to Aave V3 to earn yield.",
             func=self.supply,
             parameters={
                 "type": "object",
                 "properties": {
-                    "asset_symbol": {"type": "string", "description": "Asset symbol (e.g. USDC, WETH)"},
-                    "amount": {"type": "string", "description": "Amount to supply"}
+                    "asset_symbol": {"type": "string"},
+                    "amount": {"type": "string"}
                 },
                 "required": ["asset_symbol", "amount"]
             }
         ))
         
         self.tools.append(VeritasTool(
-            name="aave_withdraw",
-            description="Withdraw assets from Aave V3.",
-            func=self.withdraw,
+            name="aave_borrow",
+            description="Borrow assets from Aave V3. Requires existing collateral.",
+            func=self.borrow,
             parameters={
                 "type": "object",
                 "properties": {
@@ -62,61 +102,48 @@ class AaveCapability(VeritasCapability):
     def supply(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
         contract = self._get_pool_contract()
         asset_addr = self._get_asset_address(asset_symbol)
-        
-        # TODO: Need decimals here. Assuming 18 for now, but USDC is 6.
-        # Ideally we fetch decimals from the token contract first.
-        # For MVP, we'll try to guess or use a standard helper if we had one.
-        decimals = 6 if asset_symbol.upper() in ["USDC", "USDT"] else 18
+        decimals = self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10 ** decimals))
         
-        tx = contract.functions.supply(
+        tx_params = contract.functions.supply(
             self.agent.w3.to_checksum_address(asset_addr),
             raw_amount,
             self.agent.account.address,
             0
         ).build_transaction({
-            'chainId': 8453, # TODO: Dynamic
-            'gas': 300000,
-            'gasPrice': self.agent.w3.eth.gas_price,
-            'nonce': self.agent.w3.eth.get_transaction_count(self.agent.account.address),
-            'from': self.agent.account.address
+            'from': self.agent.account.address,
+            'chainId': 84532 if 'sepolia' in getattr(self.agent, 'network', '') else 8453
         })
         
-        signed = self.agent.w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = self.agent.w3.eth.send_raw_transaction(signed.raw_transaction)
-        
-        return {"status": "success", "action": "supply", "tx_hash": self.agent.w3.to_hex(tx_hash)}
+        tx_hash = self._simulate_and_send(tx_params)
+        return {"status": "success", "action": "supply", "tx_hash": tx_hash}
 
-    def withdraw(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
+    def borrow(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
         contract = self._get_pool_contract()
         asset_addr = self._get_asset_address(asset_symbol)
-        decimals = 6 if asset_symbol.upper() in ["USDC", "USDT"] else 18
+        decimals = self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10 ** decimals))
         
-        tx = contract.functions.withdraw(
+        tx_params = contract.functions.borrow(
             self.agent.w3.to_checksum_address(asset_addr),
             raw_amount,
+            2, # Variable interest rate mode
+            0,
             self.agent.account.address
         ).build_transaction({
-            'chainId': 8453,
-            'gas': 300000,
-            'gasPrice': self.agent.w3.eth.gas_price,
-            'nonce': self.agent.w3.eth.get_transaction_count(self.agent.account.address),
-            'from': self.agent.account.address
+            'from': self.agent.account.address,
+            'chainId': 84532 if 'sepolia' in getattr(self.agent, 'network', '') else 8453
         })
         
-        signed = self.agent.w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = self.agent.w3.eth.send_raw_transaction(signed.raw_transaction)
-        
-        return {"status": "success", "action": "withdraw", "tx_hash": self.agent.w3.to_hex(tx_hash)}
+        tx_hash = self._simulate_and_send(tx_params)
+        return {"status": "success", "action": "borrow", "tx_hash": tx_hash}
 
-class CompoundCapability(VeritasCapability):
+class CompoundCapability(DeFiCapability):
     """
     Interact with Compound V3 (Comet).
     """
     def __init__(self, agent: Any):
-        super().__init__("compound")
-        self.agent = agent
+        super().__init__("compound", agent)
         
         self.tools.append(VeritasTool(
             name="compound_supply",
@@ -136,28 +163,21 @@ class CompoundCapability(VeritasCapability):
         network_id = getattr(self.agent, 'network', 'base-mainnet')
         comet_addr = COMET_ADDRESSES.get(network_id)
         if not comet_addr:
-            return {"error": f"Compound not supported on {network_id}"}
+            raise ValueError(f"Compound not supported on {network_id}")
             
         contract = self.agent.w3.eth.contract(address=self.agent.w3.to_checksum_address(comet_addr), abi=COMET_ABI)
-        
-        # Similar logic for asset address and decimals
         tokens = TOKEN_ADDRESSES_BY_SYMBOLS.get(network_id, {})
         asset_addr = tokens.get(asset_symbol.upper())
-        decimals = 6 if asset_symbol.upper() == "USDC" else 18
+        decimals = self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10 ** decimals))
         
-        tx = contract.functions.supply(
+        tx_params = contract.functions.supply(
             self.agent.w3.to_checksum_address(asset_addr),
             raw_amount
         ).build_transaction({
-            'chainId': 8453,
-            'gas': 200000,
-            'gasPrice': self.agent.w3.eth.gas_price,
-            'nonce': self.agent.w3.eth.get_transaction_count(self.agent.account.address),
-            'from': self.agent.account.address
+            'from': self.agent.account.address,
+            'chainId': 84532 if 'sepolia' in network_id else 8453
         })
         
-        signed = self.agent.w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = self.agent.w3.eth.send_raw_transaction(signed.raw_transaction)
-        
-        return {"status": "success", "protocol": "Compound", "tx_hash": self.agent.w3.to_hex(tx_hash)}
+        tx_hash = self._simulate_and_send(tx_params)
+        return {"status": "success", "protocol": "Compound", "tx_hash": tx_hash}

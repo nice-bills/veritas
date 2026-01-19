@@ -6,6 +6,7 @@ from ..agent import VeritasAgent
 import uuid
 import json
 import asyncio
+import os
 from typing import Dict, List
 
 # Load environment variables
@@ -98,21 +99,23 @@ async def create_agent(config: AgentCreate):
         # 3. Load capabilities
         from ..tools import (
             WalletCapability, TradeCapability, TokenCapability,
-            ERC721Capability, BasenameCapability, DataCapability,
-            SocialCapability, IdentityCapability, PaymentCapability,
+            ERC721Capability, BasenameCapability,
+            SocialCapability, PaymentCapability,
             CreatorCapability, PrivacyCapability, AaveCapability,
             CompoundCapability, PythCapability, OnrampCapability
         )
         
         CAP_MAP = {
             "wallet": WalletCapability, "trading": TradeCapability, "token": TokenCapability,
-            "nft": ERC721Capability, "basename": BasenameCapability, "data": DataCapability,
-            "social": SocialCapability, "identity": IdentityCapability, "payments": PaymentCapability,
+            "nft": ERC721Capability, "basename": BasenameCapability,
+            "social": SocialCapability, "payments": PaymentCapability,
             "creator": CreatorCapability, "privacy": PrivacyCapability, "aave": AaveCapability,
             "compound": CompoundCapability, "pyth": PythCapability, "onramp": OnrampCapability
         }
         CAP_MAP["erc20"] = TokenCapability
         CAP_MAP["defi"] = AaveCapability
+        CAP_MAP["data"] = PythCapability # Alias
+        CAP_MAP["identity"] = BasenameCapability # Alias
         
         for cap_name in config.capabilities:
             if cap_name in CAP_MAP:

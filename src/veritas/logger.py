@@ -3,8 +3,9 @@ import time
 import json
 from pydantic import BaseModel, Field
 from .merkle import MerkleTree
-
 import uuid
+import asyncio
+import inspect
 
 class ActionLog(BaseModel):
     """Immutable record of a single agent action."""
@@ -18,7 +19,6 @@ class ActionLog(BaseModel):
     
     def to_hashable_json(self) -> str:
         """Deterministic JSON serialization for hashing."""
-        # Sort keys to ensure consistent hashing
         return json.dumps(self.model_dump(mode='json'), sort_keys=True)
 
 class VeritasLogger:
@@ -51,99 +51,53 @@ class VeritasLogger:
         )
         self._logs.append(entry)
         self.last_event_id = entry.id
-        
-        # Add to Merkle Tree
         self._merkle_tree.add_leaf(entry.to_hashable_json())
         
-        # Notify Listeners
         for listener in self.listeners:
             try:
                 listener(entry)
             except Exception:
                 pass
         
-        print(f"[Veritas] Recorded {event_type}: {tool_name} | Root: {self.get_current_root()[:8]}...")
         return entry
-
-    def observe(self, source: str, query: Dict[str, Any], result: Any) -> str:
-        """semantic alias for logging an observation. returns the event ID."""
-        entry = self.log_action(source, query, result, event_type="OBSERVATION")
-        return entry.id
-
-    def act(self, tool: str, params: Dict[str, Any], result: Any, basis_id: str) -> str:
-        """semantic alias for logging an action. returns the event ID."""
-        entry = self.log_action(tool, params, result, event_type="ACTION", basis_id=basis_id)
-        return entry.id
 
     def get_logs(self) -> List[ActionLog]:
         return self._logs
 
     def get_current_root(self) -> str:
-        """Get the current Merkle Root of all actions."""
         return self._merkle_tree.get_root() or "0x0"
-
-    def export_proofs(self, filepath: str):
-        """Export the full session proof package to a JSON file."""
-        # Calculate actual hashes for the leaves to store as "expected state"
-        leaf_hashes = [self._merkle_tree._hash(leaf) for leaf in self._merkle_tree.leaves]
-        
-        data = {
-            "session_root": self.get_current_root(),
-            "event_count": len(self._logs),
-            "timestamp": time.time(),
-            "leaf_hashes": leaf_hashes,
-            "logs": [log.model_dump(mode='json') for log in self._logs]
-        }
-        with open(filepath, "w") as f:
-            json.dump(data, f, indent=2)
-        print(f"[Veritas] Proof package saved to: {filepath}")
 
     def wrap(self, func: Optional[Callable] = None, *, tool_name: str = None, event_type: str = "ACTION"):
         """
         Decorator to automatically audit a function call.
-        Supports both sync and async functions.
+        Correctly handles both sync and async functions.
         """
-        import asyncio
-        import inspect
-
         def decorator(f: Callable):
             name = tool_name or f.__name__
             
             if inspect.iscoroutinefunction(f):
-                async def wrapper(*args, **kwargs):
+                async def async_wrapper(*args, **kwargs):
                     basis_id = kwargs.pop("basis_id", self.last_event_id)
-                    try:
-                        params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
-                    except Exception:
-                        params = {"args": "unserializable", "kwargs": "unserializable"}
+                    # Convert args/kwargs to serializable format
+                    params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
                     
                     result = await f(*args, **kwargs)
                     
-                    try:
-                        res_serializable = str(result)
-                    except:
-                        res_serializable = "unserializable_result"
-                        
+                    res_serializable = str(result)
                     self.log_action(name, params, res_serializable, event_type=event_type, basis_id=basis_id)
                     return result
+                return async_wrapper
             else:
-                def wrapper(*args, **kwargs):
+                def sync_wrapper(*args, **kwargs):
                     basis_id = kwargs.pop("basis_id", self.last_event_id)
-                    try:
-                        params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
-                    except Exception:
-                        params = {"args": "unserializable", "kwargs": "unserializable"}
+                    params = {"args": [str(a) for a in args], "kwargs": {k: str(v) for k,v in kwargs.items()}}
                     
                     result = f(*args, **kwargs)
                     
-                    try:
-                        res_serializable = str(result)
-                    except:
-                        res_serializable = "unserializable_result"
-                        
+                    res_serializable = str(result)
                     self.log_action(name, params, res_serializable, event_type=event_type, basis_id=basis_id)
                     return result
-            return wrapper
+                return sync_wrapper
 
         if func is None:
             return decorator

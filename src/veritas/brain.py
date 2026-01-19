@@ -42,9 +42,12 @@ class MiniMaxBrain:
                 content = content.split("</think>")[-1].strip()
                 
             return content.strip()
+        except requests.Timeout:
+            raise TimeoutError("MiniMax API timeout after 30s")
+        except requests.HTTPError as e:
+            raise ConnectionError(f"MiniMax API error: {e.response.status_code} - {e.response.text}")
         except Exception as e:
-            print(f"[MiniMaxBrain] Error: {e}")
-            return "ERROR"
+            raise RuntimeError(f"MiniMaxBrain failure: {e}")
 
 class BrainFactory:
     """

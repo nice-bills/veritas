@@ -75,14 +75,22 @@ class VeritasAttestor:
             # Build Transaction
             nonce = w3.eth.get_transaction_count(self.account.address, 'pending')
             
-            # Estimate gas or hardcode safe buffer
-            tx_data = eas_contract.functions.attest(request).build_transaction({
+            tx_params = {
                 'chainId': 84532,
                 'gas': 300000, # Safe buffer for EAS
                 'gasPrice': int(w3.eth.gas_price * 1.2), # Add 20% tip for speed
                 'nonce': nonce,
                 'from': self.account.address
-            })
+            }
+            
+            # Estimate gas or hardcode safe buffer
+            tx_data = eas_contract.functions.attest(request).build_transaction(tx_params)
+            
+            # Simulate transaction to catch errors early
+            try:
+                w3.eth.call(tx_data)
+            except Exception as e:
+                raise RuntimeError(f"Attestation simulation failed (revert): {e}")
             
             # Sign
             signed_tx = w3.eth.account.sign_transaction(tx_data, self.account.key)
