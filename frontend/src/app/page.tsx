@@ -6,8 +6,9 @@ import {
   CheckCircle2, AlertCircle, Hash, Settings, X, Database,
   Wallet, Zap, MessageSquare, Fingerprint, Coins, Lock, Code2, Rocket,
   Activity, CreditCard, DollarSign, Copy, RefreshCw, Search, ChevronRight,
-  Trash2
+  Trash2, LayoutGrid
 } from 'lucide-react';
+import Link from 'next/link';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { toast } from 'sonner';
@@ -197,6 +198,20 @@ export default function VeritasPlayground() {
 
       setSessionRoot(result.session_root);
       setAttestationTx(result.attestation_tx);
+      
+      // Save to History
+      const historyItem = {
+        id: agentData.id,
+        name: agentName,
+        objective: objective,
+        root: result.session_root,
+        tx: result.attestation_tx,
+        timestamp: Date.now(),
+        address: agentData.address
+      };
+      const existingHistory = JSON.parse(localStorage.getItem('veritas_agent_history') || '[]');
+      localStorage.setItem('veritas_agent_history', JSON.stringify([historyItem, ...existingHistory]));
+
       toast.success("Mission Attested to Base");
       ws.close();
     } catch (error: any) {
@@ -267,6 +282,9 @@ export default function VeritasPlayground() {
           </div>
         </div>
         <div className="flex items-center gap-6">
+          <Link href="/dashboard" className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all" title="My Agents">
+            <LayoutGrid className="w-5 h-5" />
+          </Link>
           <div className="flex items-center gap-3 px-4 py-2 bg-zinc-900/50 rounded-full border border-white/5 shadow-inner">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
             <span className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Base Sepolia</span>
