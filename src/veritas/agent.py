@@ -59,14 +59,24 @@ class VeritasAgent:
             self.account = Account.create()
             
         # Infrastructure Setup
-        if cdp_api_key_id: os.environ["CDP_API_KEY_ID"] = cdp_api_key_id
-        if cdp_api_key_secret: os.environ["CDP_API_KEY_SECRET"] = cdp_api_key_secret
-        if minimax_api_key: os.environ["MINIMAX_API_KEY"] = minimax_api_key
+        # We pass keys directly to CdpClient to avoid polluting global os.environ
+        # and to ensure thread-safety for multiple users with different keys.
+        self.client_credentials = {}
+        if cdp_api_key_id and cdp_api_key_secret:
+            self.client_credentials = {
+                "api_key_name": cdp_api_key_id,
+                "private_key": cdp_api_key_secret
+            }
         
-        self._validate_credentials()
+        self.brain = BrainFactory.create(brain_provider, api_key=minimax_api_key)
         
-        self.brain = BrainFactory.create(brain_provider)
-        self.client = CdpClient()
+        # Initialize CDP Client with explicit keys if provided
+        if self.client_credentials:
+            self.client = CdpClient.configure(**self.client_credentials)
+        else:
+            # Fallback to env vars (for local dev)
+            self.client = CdpClient()
+
         self.attestor = VeritasAttestor(self.client, self.account, network_id=network)
         
         # RPC Setup
