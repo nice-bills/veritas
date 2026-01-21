@@ -64,8 +64,8 @@ class VeritasAgent:
         self.client_credentials = {}
         if cdp_api_key_id and cdp_api_key_secret:
             self.client_credentials = {
-                "api_key_name": cdp_api_key_id,
-                "private_key": cdp_api_key_secret
+                "api_key_id": cdp_api_key_id,
+                "api_key_secret": cdp_api_key_secret
             }
         
         self.brain = BrainFactory.create(brain_provider, api_key=minimax_api_key)
