@@ -72,7 +72,7 @@ class VeritasAgent:
         
         # Initialize CDP Client with explicit keys if provided
         if self.client_credentials:
-            self.client = CdpClient.configure(**self.client_credentials)
+            self.client = CdpClient(**self.client_credentials)
         else:
             # Fallback to env vars (for local dev)
             self.client = CdpClient()
