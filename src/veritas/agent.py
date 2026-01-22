@@ -220,7 +220,15 @@ If you need to check a balance, use 'get_balance' or 'erc20_balance'."""
             if tool_name and tool_name in self.tools:
                 params = decision.get("params", {})
                 print(f"[VeritasAgent] Executing tool: {tool_name}")
-                await self.call_tool(tool_name, **params)
+                try:
+                    # Enforce timeout for tool execution
+                    await asyncio.wait_for(self.call_tool(tool_name, **params), timeout=15.0)
+                except asyncio.TimeoutError:
+                    print(f"[VeritasAgent] Tool Timeout: {tool_name}")
+                    self.logger.log_action(tool_name, params, "Error: Tool execution timed out after 15s", event_type="ERROR", basis_id=self.logger.last_event_id)
+                except Exception as e:
+                    print(f"[VeritasAgent] Tool Failure: {e}")
+                    self.logger.log_action(tool_name, params, f"Error: {str(e)}", event_type="ERROR", basis_id=self.logger.last_event_id)
             else:
                 print(f"[VeritasAgent] Invalid tool: {tool_name}")
 

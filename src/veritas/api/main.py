@@ -140,8 +140,12 @@ async def create_agent(request: Request, config: AgentCreate):
             "address": agent.account.address,
             "network": agent.network
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.websocket("/agents/{agent_id}/ws")
 async def websocket_endpoint(websocket: WebSocket, agent_id: str):

@@ -95,13 +95,13 @@ class BasenameCapability(VeritasCapability):
                 "type": "object",
                 "properties": {
                     "basename": {"type": "string", "description": "The desired name (e.g. 'alice')"},
-                    "amount": {"type": "string", "description": "Amount of ETH to pay (default '0.002')"}
+                    "amount": {"type": "string", "description": "Amount of ETH to pay (default '0.00001')"}
                 },
                 "required": ["basename", "amount"]
             }
         ))
 
-    def register(self, basename: str, amount: str = "0.002") -> Dict[str, Any]:
+    def register(self, basename: str, amount: str = "0.00001") -> Dict[str, Any]:
         w3 = self.agent.w3
         network_id = getattr(self.agent, 'network', 'base-sepolia')
         is_mainnet = "sepolia" not in network_id
