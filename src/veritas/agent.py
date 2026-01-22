@@ -101,11 +101,21 @@ class VeritasAgent:
         print(f"[VeritasAgent] Initialized '{name}' on {network} | Address: {self.account.address}")
 
     def _validate_credentials(self):
-        """Ensure all required API keys are present."""
-        required = ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET", "MINIMAX_API_KEY"]
-        missing = [k for k in required if not os.getenv(k)]
-        if missing:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+        """Ensure all required API keys are present (either passed or in env)."""
+        # Check CDP Keys
+        has_cdp = (self.client_credentials.get("api_key_id") and self.client_credentials.get("api_key_secret")) or \
+                  (os.getenv("CDP_API_KEY_ID") and os.getenv("CDP_API_KEY_SECRET"))
+        
+        # Check Brain Keys (MiniMax)
+        # BrainFactory checks env var inside create(), but we can check existence here too
+        # MiniMaxBrain init also checks env.
+        has_brain = self.brain.api_key or os.getenv("MINIMAX_API_KEY")
+
+        if not has_cdp:
+            raise ValueError("Missing CDP credentials. Provide cdp_api_key_id/secret or set CDP_API_KEY_ID/SECRET env vars.")
+        
+        if not has_brain:
+             raise ValueError("Missing Brain credentials. Provide minimax_api_key or set MINIMAX_API_KEY env var.")
 
     def load_capability(self, capability: VeritasCapability):
         """Register a capability and its tools with the agent."""
