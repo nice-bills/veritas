@@ -167,11 +167,13 @@ INSTRUCTIONS:
   "thought": "your reasoning",
   "tool": "tool_name",
   "params": {{ "param_name": "value" }},
-  "finished": true/false
+  "finished": false
 }}
-If you need to check a balance, use 'get_balance'.
-If you need a Pyth Price Feed ID:
-- ETH/USD: 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"""
+IMPORTANT:
+- If you want to EXECUTE a tool, you MUST set "finished": false.
+- Only set "finished": true when you have fully completed the objective and have the final answer.
+- If the objective is to check a price, you must CALL the tool first (finished: false), then see the result, then finish.
+If you need to check a balance, use 'get_balance' or 'erc20_balance'."""
 
             user_prompt = f"History: {json.dumps(recent_logs)}"
             
