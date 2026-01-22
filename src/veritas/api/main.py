@@ -176,6 +176,8 @@ async def run_mission(request: Request, agent_id: str, mission_req: MissionReque
             "attestation_tx": tx_hash,
             "logs": [log.model_dump(mode='json') for log in agent.logger.get_logs()]
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import traceback
         traceback.print_exc()
