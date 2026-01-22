@@ -56,19 +56,45 @@ const CAPABILITY_GROUPS = [
   }
 ];
 
+// Templates Config
 const TEMPLATES = [
-  { id: 'arbitrage', name: 'Arbitrage Hunter', objective: 'Check ETH price on Pyth and compare with Uniswap pools. If there is a >1% spread, simulate a trade.', caps: ['wallet', 'token', 'pyth', 'trading'] },
-  { id: 'rebalance', name: 'Portfolio Guard', objective: 'Check my ETH balance. If it is greater than 0.05, swap the excess to USDC using WETH wrapping.', caps: ['wallet', 'token', 'trading'] },
-  { id: 'yield', name: 'Yield Optimizer', objective: 'Check my USDC balance and supply it to Aave V3 to earn yield.', caps: ['wallet', 'token', 'aave'] },
-  { id: 'basename', name: 'Identity Manager', objective: 'Register a new .basetest.eth name for this agent and verify it on-chain.', caps: ['wallet', 'basename'] },
-  { id: 'monitor', name: 'Whale Monitor', objective: 'Monitor the vitalik.eth address. If it moves funds, log an alert.', caps: ['data', 'basename'] }
+  {
+    id: 'arbitrage',
+    name: 'Arbitrage Hunter',
+    objective: 'Check ETH price on Pyth and compare with Uniswap pools. If there is a >1% spread, simulate a trade to capture profit.',
+    caps: ['wallet', 'token', 'pyth', 'trading']
+  },
+  {
+    id: 'rebalance',
+    name: 'Portfolio Guard',
+    objective: 'Check my ETH balance. If it is greater than 0.005 ETH, transfer 0.0001 ETH to the secure vault: 0x000000000000000000000000000000000000dEaD',
+    caps: ['wallet', 'token', 'trading']
+  },
+  {
+    id: 'yield',
+    name: 'Yield Optimizer',
+    objective: 'Check my USDC balance and supply it to Aave V3 to earn yield.',
+    caps: ['wallet', 'token', 'aave']
+  },
+  {
+    id: 'basename',
+    name: 'Identity Manager',
+    objective: 'Register a new .basetest.eth name for this agent and verify it on-chain.',
+    caps: ['wallet', 'basename']
+  },
+  {
+    id: 'monitor',
+    name: 'Whale Monitor',
+    objective: 'Monitor the vitalik.eth address. If it moves funds, log an alert.',
+    caps: ['data', 'basename']
+  }
 ];
 
 export default function VeritasPlayground() {
   const [agentName, setAgentName] = useState('Sentinel-1');
   const [brainProvider, setBrainProvider] = useState('minimax');
   const [selectedCaps, setSelectedCaps] = useState<string[]>(['wallet', 'token', 'basename', 'aave']);
-  const [objective, setObjective] = useState('Check balance and secure 0.0001 ETH if available.');
+  const [objective, setObjective] = useState('Check my balance. If I have ETH, transfer 0.0001 ETH to 0x000000000000000000000000000000000000dEaD to secure it.');
   const [searchQuery, setSearchSearchQuery] = useState('');
   
   // UI Toggles
@@ -128,6 +154,17 @@ export default function VeritasPlayground() {
     localStorage.setItem('veritas_minimax_key', minimaxKey);
     setShowSettings(false);
     toast.success("Credentials secured");
+  };
+
+  const downloadProof = () => {
+    const data = { session_root: sessionRoot, logs, timestamp: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `veritas-proof-${Date.now()}.json`;
+    a.click();
+    toast.success("Proof downloaded");
   };
 
   const runMission = async () => {
@@ -190,6 +227,32 @@ export default function VeritasPlayground() {
     log.tool_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     log.output_result.toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const formatLogOutput = (log: any) => {
+    try {
+      if (typeof log.output_result === 'string' && (log.output_result.trim().startsWith('{') || log.output_result.trim().startsWith('['))) {
+        const parsed = JSON.parse(log.output_result);
+        if (parsed.thought) return parsed.thought;
+        if (parsed.balance_eth) return `Balance: ${parsed.balance_eth} ETH`;
+        if (parsed.price) return `Price: $${parsed.price}`;
+        if (parsed.tx_hash) return `Transaction: ${parsed.tx_hash}`;
+        return JSON.stringify(parsed, null, 2);
+      }
+      return log.output_result;
+    } catch {
+      return log.output_result;
+    }
+  };
+
+  const getLogColor = (type: string) => {
+    switch (type) {
+      case 'ACTION': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'OBSERVATION': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      case 'THOUGHT': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      case 'ERROR': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      default: return 'bg-zinc-800 text-zinc-400';
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#09090b] text-zinc-300 font-sans overflow-hidden">
@@ -301,14 +364,14 @@ export default function VeritasPlayground() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar" ref={scrollRef}>
-            {logs.map((log, i) => (
+            {filteredLogs.map((log, i) => (
               <div key={i} className="font-mono text-xs border-l-2 border-zinc-800 pl-4 py-1 hover:border-zinc-600 transition-colors group">
                 <div className="flex items-center gap-3 mb-1">
                   <span className={cn("text-[10px] font-bold uppercase", log.event_type === 'THOUGHT' ? 'text-purple-400' : log.event_type === 'ACTION' ? 'text-emerald-400' : log.event_type === 'ERROR' ? 'text-red-400' : 'text-blue-400')}>{log.event_type}</span>
                   <span className="text-[10px] text-zinc-600">{log.tool_name}</span>
                   <span className="text-[10px] text-zinc-700 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">{new Date(log.timestamp * 1000).toLocaleTimeString()}</span>
                 </div>
-                <div className="text-zinc-400 whitespace-pre-wrap break-words leading-relaxed pl-1">{log.output_result}</div>
+                <pre className="whitespace-pre-wrap break-words leading-relaxed pl-1 text-zinc-300 font-medium drop-shadow-sm">{formatLogOutput(log)}</pre>
               </div>
             ))}
             {logs.length === 0 && (
@@ -344,7 +407,7 @@ export default function VeritasPlayground() {
               )}
 
               <div className="flex gap-2">
-                <button className="flex-1 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-white transition-all flex items-center justify-center gap-2">
+                <button className="flex-1 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-bold uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-white transition-all flex items-center justify-center gap-2" onClick={downloadProof}>
                   <Download className="w-3 h-3" /> Proof
                 </button>
                 <button className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition-all">
