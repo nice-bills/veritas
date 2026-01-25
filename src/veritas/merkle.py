@@ -1,11 +1,12 @@
 import hashlib
-import json
 from typing import List, Optional
+
 
 class MerkleTree:
     """
     A simple, pure-Python Merkle Tree implementation using SHA256.
     """
+
     def __init__(self, leaves: Optional[List[str]] = None):
         self.leaves = leaves or []
         self.tree = []
@@ -18,7 +19,7 @@ class MerkleTree:
         self._build()
 
     def _hash(self, data: str) -> str:
-        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
     def _build(self):
         """Build the tree from current leaves."""
@@ -42,7 +43,7 @@ class MerkleTree:
                 # Hash combined
                 combined = self._hash(left + right)
                 next_level.append(combined)
-            
+
             self.tree.append(next_level)
             current_level = next_level
 
@@ -58,39 +59,36 @@ class MerkleTree:
         """
         if not self.tree:
             return []
-        
+
         proof = []
-        for level in self.tree[:-1]: # Exclude root level
+        for level in self.tree[:-1]:  # Exclude root level
             if index >= len(level):
-                break # Should not happen if tree is consistent
-                
+                break  # Should not happen if tree is consistent
+
             is_right_child = index % 2 == 1
             sibling_index = index - 1 if is_right_child else index + 1
-            
+
             if sibling_index < len(level):
                 sibling_hash = level[sibling_index]
             else:
                 # If odd, the sibling is itself (duplicated)
                 sibling_hash = level[index]
 
-            proof.append({
-                'position': 'left' if is_right_child else 'right',
-                'data': sibling_hash
-            })
-            
-            index //= 2 # Move to parent index
-            
+            proof.append({"position": "left" if is_right_child else "right", "data": sibling_hash})
+
+            index //= 2  # Move to parent index
+
         return proof
 
     def verify_proof(self, leaf: str, proof: List[dict], root: str) -> bool:
         """Verify a proof locally."""
         current_hash = self._hash(leaf)
-        
+
         for node in proof:
-            sibling = node['data']
-            if node['position'] == 'left':
+            sibling = node["data"]
+            if node["position"] == "left":
                 current_hash = self._hash(sibling + current_hash)
             else:
                 current_hash = self._hash(current_hash + sibling)
-                
+
         return current_hash == root

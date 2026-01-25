@@ -4,9 +4,7 @@ import json
 import base64
 import time
 import hashlib
-from datetime import datetime
 from eth_account import Account
-from web3 import Web3
 from .base import VeritasCapability, VeritasTool
 
 USDC_ADDRESSES = {
@@ -215,12 +213,8 @@ class PaymentCapability(VeritasCapability):
                 "capabilities": ["EIP-3009_signature", "direct_transaction"],
             }
 
-    def build_eip3009_payment(
-        self, to_address: str, amount_usdc: float
-    ) -> Dict[str, Any]:
+    def build_eip3009_payment(self, to_address: str, amount_usdc: float) -> Dict[str, Any]:
         try:
-            from web3 import Web3
-
             w3 = self.agent.w3
             from_address = self.agent.account.address
             usdc_address = self._get_usdc_address()
@@ -278,8 +272,6 @@ class PaymentCapability(VeritasCapability):
                 )
             )
 
-            from eth_account import Account
-
             digest = w3.keccak(b"\x19\x01" + domain_separator + struct_hash)
 
             signed = Account.unsafe_sign_hash(self.agent.account.key, digest)
@@ -301,9 +293,7 @@ class PaymentCapability(VeritasCapability):
                 "status": "signed",
                 "wallet_type": "EOA",
                 "authorization": payment_payload,
-                "encoded_payload": base64.b64encode(
-                    json.dumps(payment_payload).encode()
-                ).decode(),
+                "encoded_payload": base64.b64encode(json.dumps(payment_payload).encode()).decode(),
                 "message": "EIP-3009 authorization ready. Facilitator will submit on-chain.",
             }
 
@@ -515,9 +505,9 @@ class PaymentCapability(VeritasCapability):
             if resp.status_code == 200:
                 result["data"] = resp.text[:2000]
             elif resp.status_code == 402:
-                payment_required = resp.headers.get(
-                    "PAYMENT-REQUIRED"
-                ) or resp.headers.get("WWW-Authenticate")
+                payment_required = resp.headers.get("PAYMENT-REQUIRED") or resp.headers.get(
+                    "WWW-Authenticate"
+                )
                 result["payment_required"] = True
                 result["payment_header"] = payment_required
                 result["message"] = "Payment required"

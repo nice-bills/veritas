@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -9,51 +9,65 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface AgentHistoryItem {
+  id: string;
+  name: string;
+  objective: string;
+  root: string;
+  tx?: string;
+  timestamp: number;
+  address?: string;
+}
+
+const formatAddress = (address?: string): string => {
+  if (!address) return 'Unknown';
+  return `${address.slice(0,6)}...${address.slice(-4)}`;
+};
+
 export default function Dashboard() {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<AgentHistoryItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('veritas_agent_history');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      return [];
+    }
+    return [];
+  });
   const router = useRouter();
 
-  useEffect(() => {
-    const saved = localStorage.getItem('veritas_agent_history');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
-
-  const clearHistory = () => {
+  const handleClearHistory = useCallback(() => {
     if (confirm("Are you sure you want to clear all agent history?")) {
-      localStorage.removeItem('veritas_agent_history');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('veritas_agent_history');
+      }
       setHistory([]);
       toast.success("History cleared");
     }
-  };
+  }, []);
 
-  const loadAgent = (item: any) => {
-    // Load config back to main playground
+  const loadAgent = useCallback((item: AgentHistoryItem) => {
     const config = {
       name: item.name,
-      brain: 'minimax', // Default or save this too if available
-      caps: ['wallet', 'token', 'basename', 'aave'], // Default or save this too
+      brain: 'minimax',
+      caps: ['wallet', 'token', 'basename', 'aave'],
       objective: item.objective
     };
-    localStorage.setItem('veritas_agent_config', JSON.stringify(config));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('veritas_agent_config', JSON.stringify(config));
+    }
     toast.success("Agent configuration loaded");
     router.push('/');
-  };
+  }, [router]);
 
   return (
     <div className="flex flex-col h-screen bg-[#050505] text-slate-200 font-sans selection:bg-indigo-500/30 overflow-hidden relative">
-      {/* Background Pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
-      {/* Header */}
       <header className="flex items-center justify-between px-8 py-5 border-b border-white/5 bg-black/40 backdrop-blur-2xl z-10">
         <div className="flex items-center gap-4">
-          <Link href="/" className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all">
+          <Link href="/" aria-label="Back to playground" className="p-2 hover:bg-white/5 rounded-full text-zinc-500 hover:text-white transition-all focus-visible:ring-2 focus-visible:ring-white/20">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
@@ -62,7 +76,7 @@ export default function Dashboard() {
             </h1>
           </div>
         </div>
-        <button onClick={clearHistory} className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 rounded-full border border-white/5 text-xs font-bold uppercase tracking-widest transition-all">
+        <button onClick={handleClearHistory} aria-label="Clear history" className="flex items-center gap-2 px-4 py-2 bg-zinc-900/50 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 rounded-full border border-white/5 text-xs font-bold uppercase tracking-widest transition-all focus-visible:ring-2 focus-visible:ring-red-500/20">
           <Trash2 className="w-4 h-4" /> Clear History
         </button>
       </header>
@@ -87,7 +101,7 @@ export default function Dashboard() {
                     <h3 className="text-lg font-black text-white mb-1">{agent.name}</h3>
                     <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
                       <Wallet className="w-3 h-3" />
-                      {agent.address ? `${agent.address.slice(0,6)}...${agent.address.slice(-4)}` : 'Unknown'}
+                      {formatAddress(agent.address)}
                     </div>
                   </div>
                   <div className="bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl">

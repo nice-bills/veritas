@@ -28,7 +28,7 @@ jobs:
         run: uv sync --frozen --dev
 
       - name: Run ruff linter
-        run: uv run ruff check src/
+        run: uv run python -m ruff check src/
 
       - name: Run mypy type checker
         run: uv run mypy src/

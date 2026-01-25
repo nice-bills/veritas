@@ -8,7 +8,6 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 import uuid
-import json
 import asyncio
 import os
 from typing import Dict, List
@@ -99,9 +98,7 @@ async def create_agent(request: Request, config: AgentCreate):
                 # Check balance
                 wei_bal = agent.w3.eth.get_balance(agent.account.address)
                 if wei_bal == 0:
-                    print(
-                        f"[API] Wallet {agent.account.address} empty. Requesting Faucet..."
-                    )
+                    print(f"[API] Wallet {agent.account.address} empty. Requesting Faucet...")
                     await agent.client.evm.request_faucet(
                         address=agent.account.address,
                         network="base-sepolia",
@@ -113,9 +110,7 @@ async def create_agent(request: Request, config: AgentCreate):
 
         # 2. Setup Real-Time Log Listener
         def on_new_log(log_entry):
-            asyncio.create_task(
-                manager.broadcast(agent_id, log_entry.model_dump(mode="json"))
-            )
+            asyncio.create_task(manager.broadcast(agent_id, log_entry.model_dump(mode="json")))
 
         agent.logger.listeners.append(on_new_log)
 
@@ -171,7 +166,7 @@ async def create_agent(request: Request, config: AgentCreate):
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         import traceback
 
         error_msg = traceback.format_exc()
@@ -200,9 +195,7 @@ async def run_mission(request: Request, agent_id: str, mission_req: MissionReque
         root = await agent.run_mission(mission_req.objective)
 
         # 2. On-Chain Attestation
-        tx_hash = await agent.attestor.attest_root(
-            merkle_root=root, agent_id=agent.name
-        )
+        tx_hash = await agent.attestor.attest_root(merkle_root=root, agent_id=agent.name)
 
         # 3. Format Response
         return {

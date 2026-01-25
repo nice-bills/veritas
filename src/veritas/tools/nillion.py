@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional
 from .base import VeritasCapability, VeritasTool
-import os
 import secrets
 import hashlib
 from datetime import datetime
@@ -126,9 +125,7 @@ class PrivacyCapability(VeritasCapability):
             "message": "Secret encrypted and stored securely",
         }
 
-    def retrieve_secret(
-        self, secret_name: str, store_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def retrieve_secret(self, secret_name: str, store_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Retrieve a stored secret.
         In production, this would use nillion-client SDK to decrypt.

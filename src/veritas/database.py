@@ -1,7 +1,7 @@
 """Database models and utilities for Veritas."""
 
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import (
@@ -10,7 +10,6 @@ from sqlalchemy import (
     Text,
     Integer,
     Float,
-    Boolean,
     DateTime,
     JSON,
     ForeignKey,
@@ -20,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
 )
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.pool import NullPool
 
 from veritas.config import settings

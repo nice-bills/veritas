@@ -1,12 +1,12 @@
-from typing import Any, Dict, List, Optional, Callable, Tuple
+from typing import Any, Dict, List, Optional, Callable
 import os
 import json
 import asyncio
 import uuid
 from datetime import datetime
-from .logger import VeritasLogger, ActionLog
+from .logger import VeritasLogger
 from .attestor import VeritasAttestor
-from .brain import BrainFactory, Brain
+from .brain import BrainFactory
 from .tools import (
     VeritasCapability,
     VeritasTool,
@@ -25,10 +25,8 @@ from .tools import (
     OnrampCapability,
     ChainlinkCapability,
 )
-from .config import settings
 from eth_account import Account
 from cdp import CdpClient
-from web3 import Web3
 
 
 class VeritasAgent:
@@ -413,11 +411,11 @@ INSTRUCTIONS:
 
                 if condition_type == "price":
                     target = condition.get("target")  # e.g., "ETH/USD"
-                    operator = condition.get("condition")  # "gte", "lte", "eq"
-                    threshold = condition.get("value")
+                    _operator = condition.get("condition")  # "gte", "lte", "eq"
+                    _threshold = condition.get("value")
 
                     if target in self.tools:
-                        result = await self.call_tool(target.lower().replace("/", "_"), **{})
+                        _result = await self.call_tool(target.lower().replace("/", "_"), **{})
                         # Parse result and check condition
                         # This is simplified - real implementation would parse the tool output
 
@@ -571,10 +569,10 @@ async def create_persistent_agent(
             agent.load_capability(CAP_MAP[cap_name](agent))
 
     # Setup monitoring for price alerts if objective contains price conditions
-    conditions = []
+    _conditions = []
     if initial_objective and "price" in initial_objective.lower():
         # Simple condition detection - can be enhanced
-        conditions = [
+        _conditions = [
             {
                 "type": "price",
                 "target": "ETH/USD",

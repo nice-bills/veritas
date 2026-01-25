@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
   Play, ShieldCheck, Terminal, Settings, X, Database,
-  Wallet, Zap, MessageSquare, Fingerprint, Coins, Lock, Code2, Rocket,
-  Activity, CreditCard, DollarSign, Copy, RefreshCw, Search, ChevronRight,
-  Trash2, Download, QrCode, LayoutGrid, ChevronDown, ChevronUp, Layers, CheckCircle2,
-  ExternalLink, Hash
+  Wallet, Zap, MessageSquare, Fingerprint, Coins, Lock, Code2,
+  Activity, CreditCard, DollarSign, RefreshCw, Trash2, Download, QrCode, LayoutGrid, 
+  ChevronDown, ChevronUp, Layers, CheckCircle2, ExternalLink, Hash
 } from 'lucide-react';
 import Link from 'next/link';
 import { clsx, type ClassValue } from 'clsx';
@@ -20,7 +19,6 @@ function cn(...inputs: ClassValue[]) {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_BASE_URL = API_BASE_URL.replace("http", "ws");
 
-// Grouped Capabilities
 const CAPABILITY_GROUPS = [
   {
     name: "Core",
@@ -56,7 +54,6 @@ const CAPABILITY_GROUPS = [
   }
 ];
 
-// Templates Config
 const TEMPLATES = [
   {
     id: 'arbitrage',
@@ -90,26 +87,60 @@ const TEMPLATES = [
   }
 ];
 
+const DEFAULT_AGENT_NAME = 'Sentinel-1';
+const DEFAULT_OBJECTIVE = 'Check my balance. If I have ETH, transfer 0.0001 ETH to 0x000000000000000000000000000000000000dEaD to secure it.';
+const DEFAULT_CAPS = ['wallet', 'token', 'basename', 'aave'];
+
+const formatLogOutput = (log: { output_result: string }) => {
+  const result = log.output_result;
+  if (typeof result === 'string' && (result.trim().startsWith('{') || result.trim().startsWith('['))) {
+    try {
+      const parsed = JSON.parse(result);
+      if (parsed.thought) return parsed.thought;
+      if (parsed.balance_eth) return `Balance: ${parsed.balance_eth} ETH`;
+      if (parsed.price) return `Price: $${parsed.price}`;
+      if (parsed.tx_hash) return `Transaction: ${parsed.tx_hash}`;
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return result;
+    }
+  }
+  return result;
+};
+
+const loadSavedConfig = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem('veritas_agent_config');
+    if (saved) return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+  return null;
+};
+
 export default function VeritasPlayground() {
-  const [agentName, setAgentName] = useState('Sentinel-1');
+  const [agentName, setAgentName] = useState(DEFAULT_AGENT_NAME);
   const [brainProvider, setBrainProvider] = useState('minimax');
-  const [selectedCaps, setSelectedCaps] = useState<string[]>(['wallet', 'token', 'basename', 'aave']);
-  const [objective, setObjective] = useState('Check my balance. If I have ETH, transfer 0.0001 ETH to 0x000000000000000000000000000000000000dEaD to secure it.');
-  const [searchQuery, setSearchSearchQuery] = useState('');
-  
-  // UI Toggles
-  const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedCaps, setSelectedCaps] = useState<string[]>(DEFAULT_CAPS);
+  const [objective, setObjective] = useState(DEFAULT_OBJECTIVE);
+  const [searchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Core', 'DeFi']);
   
-  // API Keys
   const [cdpId, setCdpId] = useState('');
   const [cdpSecret, setCdpSecret] = useState('');
   const [minimaxKey, setMinimaxKey] = useState('');
   
-  // Runtime State
   const [isRunning, setIsRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [logs, setLogs] = useState<any[]>([]);
+interface LogEntry {
+  event_type: string;
+  tool_name: string;
+  output_result: string | number | boolean | object;
+  timestamp: number;
+}
+
+const [logs, setLogs] = useState<LogEntry[]>([]);
   const [sessionRoot, setSessionRoot] = useState<string | null>(null);
   const [attestationTx, setAttestationTx] = useState<string | null>(null);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
@@ -117,46 +148,62 @@ export default function VeritasPlayground() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const hasCredentials = useMemo(() => Boolean(cdpId && cdpSecret && minimaxKey), [cdpId, cdpSecret, minimaxKey]);
+
+  const filteredLogs = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return logs.filter(log => 
+      log.tool_name.toLowerCase().includes(query) ||
+      log.output_result.toString().toLowerCase().includes(query)
+    );
+  }, [logs, searchQuery]);
+
+  const toggleGroup = useCallback((name: string) => {
+    setExpandedGroups(prev => prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]);
+  }, []);
+
+  const toggleCap = useCallback((id: string) => {
+    setSelectedCaps(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+  }, []);
+
+  const handleScrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, []);
+
   useEffect(() => {
-    // Load config
+    handleScrollToBottom();
+  }, [logs, handleScrollToBottom]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     setCdpId(localStorage.getItem('veritas_cdp_id') || '');
     setCdpSecret(localStorage.getItem('veritas_cdp_secret') || '');
     setMinimaxKey(localStorage.getItem('veritas_minimax_key') || '');
     
-    const savedConfig = localStorage.getItem('veritas_agent_config');
+    const savedConfig = loadSavedConfig();
     if (savedConfig) {
-      try {
-        const parsed = JSON.parse(savedConfig);
-        setAgentName(parsed.name || 'Sentinel-1');
-        setBrainProvider(parsed.brain || 'minimax');
-        setSelectedCaps(parsed.caps || ['wallet', 'token', 'basename', 'aave']);
-        setObjective(parsed.objective || 'Check balance and secure 0.0001 ETH if available.');
-      } catch (e) {}
+      setAgentName(savedConfig.name || DEFAULT_AGENT_NAME);
+      setBrainProvider(savedConfig.brain || 'minimax');
+      setSelectedCaps(savedConfig.caps || DEFAULT_CAPS);
+      setObjective(savedConfig.objective || DEFAULT_OBJECTIVE);
     }
+    
     return () => wsRef.current?.close();
   }, []);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [logs]);
-
-  const toggleGroup = (name: string) => {
-    setExpandedGroups(prev => prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]);
-  };
-
-  const toggleCap = (id: string) => {
-    setSelectedCaps(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
-  };
-
-  const saveKeys = () => {
+  const saveKeys = useCallback(() => {
+    if (typeof window === 'undefined') return;
     localStorage.setItem('veritas_cdp_id', cdpId);
     localStorage.setItem('veritas_cdp_secret', cdpSecret);
     localStorage.setItem('veritas_minimax_key', minimaxKey);
     setShowSettings(false);
     toast.success("Credentials secured");
-  };
+  }, [cdpId, cdpSecret, minimaxKey]);
 
-  const downloadProof = () => {
+  const downloadProof = useCallback(() => {
     const data = { session_root: sessionRoot, logs, timestamp: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -165,11 +212,11 @@ export default function VeritasPlayground() {
     a.download = `veritas-proof-${Date.now()}.json`;
     a.click();
     toast.success("Proof downloaded");
-  };
+  }, [sessionRoot, logs]);
 
-  const runMission = async () => {
+  const runMission = useCallback(async () => {
     if (!objective.trim()) return;
-    if (!cdpId || !cdpSecret || !minimaxKey) {
+    if (!hasCredentials) {
       setShowSettings(true);
       return;
     }
@@ -210,71 +257,55 @@ export default function VeritasPlayground() {
       setAttestationTx(result.attestation_tx);
       
       const historyItem = { id: agentData.id, name: agentName, objective, root: result.session_root, tx: result.attestation_tx, timestamp: Date.now(), address: agentData.address };
-      const hist = JSON.parse(localStorage.getItem('veritas_agent_history') || '[]');
-      localStorage.setItem('veritas_agent_history', JSON.stringify([historyItem, ...hist]));
+      if (typeof window !== 'undefined') {
+        const hist = JSON.parse(localStorage.getItem('veritas_agent_history') || '[]');
+        localStorage.setItem('veritas_agent_history', JSON.stringify([historyItem, ...hist]));
+      }
 
       toast.success("Audit Verified");
       ws.close();
-    } catch (error: any) {
-      toast.error("Error", { description: error.message });
-      setLogs(prev => [...prev, { event_type: 'ERROR', tool_name: 'System', output_result: error.message, timestamp: Date.now()/1000 }]);
+    } catch (error) {
+      toast.error("Error", { description: error instanceof Error ? error.message : 'Unknown error' });
+      setLogs(prev => [...prev, { event_type: 'ERROR', tool_name: 'System', output_result: error instanceof Error ? error.message : 'Unknown error', timestamp: Date.now()/1000 }]);
     } finally {
       setIsRunning(false);
     }
-  };
+  }, [objective, hasCredentials, agentName, brainProvider, selectedCaps, cdpId, cdpSecret, minimaxKey]);
 
-  const filteredLogs = logs.filter(log => 
-    log.tool_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.output_result.toString().toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const formatLogOutput = (log: any) => {
-    try {
-      if (typeof log.output_result === 'string' && (log.output_result.trim().startsWith('{') || log.output_result.trim().startsWith('['))) {
-        const parsed = JSON.parse(log.output_result);
-        if (parsed.thought) return parsed.thought;
-        if (parsed.balance_eth) return `Balance: ${parsed.balance_eth} ETH`;
-        if (parsed.price) return `Price: $${parsed.price}`;
-        if (parsed.tx_hash) return `Transaction: ${parsed.tx_hash}`;
-        return JSON.stringify(parsed, null, 2);
-      }
-      return log.output_result;
-    } catch {
-      return log.output_result;
-    }
-  };
-
-  const getLogColor = (type: string) => {
-    switch (type) {
-      case 'ACTION': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'OBSERVATION': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      case 'THOUGHT': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-      case 'ERROR': return 'bg-red-500/10 text-red-400 border-red-500/20';
-      default: return 'bg-zinc-800 text-zinc-400';
-    }
-  };
+  const loadTemplate = useCallback((template: typeof TEMPLATES[0]) => {
+    setObjective(template.objective);
+    setSelectedCaps(template.caps);
+    toast.success("Template Loaded");
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-[#09090b] text-zinc-300 font-sans overflow-hidden">
-      {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2"><Settings className="w-4 h-4" /> System Configuration</h2>
-              <button onClick={() => setShowSettings(false)}><X className="w-4 h-4 hover:text-white transition-colors" /></button>
+              <button onClick={() => setShowSettings(false)} aria-label="Close settings" className="hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-white/20 rounded"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-4">
-              <input value={cdpId} onChange={(e) => setCdpId(e.target.value)} className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs focus:border-zinc-600 outline-none transition-all font-mono" placeholder="CDP Key Name" />
-              <textarea rows={3} value={cdpSecret} onChange={(e) => setCdpSecret(e.target.value)} className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono focus:border-zinc-600 outline-none transition-all" placeholder="CDP Private Key" />
-              <input type="password" value={minimaxKey} onChange={(e) => setMinimaxKey(e.target.value)} className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs focus:border-zinc-600 outline-none transition-all font-mono" placeholder="MiniMax API Key" />
+              <label className="block">
+                <span className="sr-only">CDP Key Name</span>
+                <input value={cdpId} onChange={(e) => setCdpId(e.target.value)} autoComplete="off" className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs focus:border-zinc-600 outline-none transition-all font-mono" placeholder="CDP Key Name…" />
+              </label>
+              <label className="block">
+                <span className="sr-only">CDP Private Key</span>
+                <textarea rows={3} value={cdpSecret} onChange={(e) => setCdpSecret(e.target.value)} autoComplete="off" className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono focus:border-zinc-600 outline-none transition-all" placeholder="CDP Private Key…" />
+              </label>
+              <label className="block">
+                <span className="sr-only">MiniMax API Key</span>
+                <input type="password" value={minimaxKey} onChange={(e) => setMinimaxKey(e.target.value)} autoComplete="off" className="w-full bg-black/50 border border-zinc-800 rounded-lg px-3 py-2 text-xs focus:border-zinc-600 outline-none transition-all font-mono" placeholder="MiniMax API Key…" />
+              </label>
               <button onClick={saveKeys} className="w-full py-2 bg-white text-black hover:bg-zinc-200 rounded-lg font-semibold text-xs transition-colors">Save Credentials</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
       <header className="h-14 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between px-6 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-white rounded flex items-center justify-center"><ShieldCheck className="text-black w-4 h-4" /></div>
@@ -285,13 +316,12 @@ export default function VeritasPlayground() {
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[10px] font-medium text-zinc-400">Base Sepolia</span>
           </div>
-          <Link href="/dashboard" className="hover:text-white transition-colors" title="Agent History"><LayoutGrid className="w-4 h-4" /></Link>
-          <button onClick={() => setShowSettings(true)} className="hover:text-white transition-colors"><Settings className="w-4 h-4" /></button>
+          <Link href="/dashboard" aria-label="Agent History" className="hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-white/20 rounded p-1"><LayoutGrid className="w-4 h-4" /></Link>
+          <button onClick={() => setShowSettings(true)} aria-label="Settings" className="hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-white/20 rounded p-1"><Settings className="w-4 h-4" /></button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar: Configuration */}
         <aside className="w-72 border-r border-zinc-800 bg-zinc-900/30 flex flex-col overflow-hidden">
           <div className="p-4 border-b border-zinc-800">
             <label className="text-[10px] uppercase font-bold text-zinc-500 mb-2 block">Agent Identity</label>
@@ -302,7 +332,6 @@ export default function VeritasPlayground() {
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-            {/* Templates Dropdown */}
             <div>
               <button onClick={() => setShowTemplates(!showTemplates)} className="flex items-center justify-between w-full text-xs font-bold text-zinc-400 hover:text-white mb-2 group">
                 <span className="flex items-center gap-2"><Zap className="w-3.5 h-3.5" /> Strategy Templates</span>
@@ -311,7 +340,7 @@ export default function VeritasPlayground() {
               {showTemplates && (
                 <div className="space-y-1 pl-2 border-l border-zinc-800 ml-1.5 animate-in slide-in-from-top-2 duration-200">
                   {TEMPLATES.map(t => (
-                    <button key={t.id} onClick={() => { setObjective(t.objective); setSelectedCaps(t.caps); toast.success("Template Loaded"); }} className="w-full text-left px-3 py-2 text-[11px] text-zinc-500 hover:text-white hover:bg-zinc-800/50 rounded transition-colors truncate">
+                    <button key={t.id} onClick={() => loadTemplate(t)} className="w-full text-left px-3 py-2 text-[11px] text-zinc-500 hover:text-white hover:bg-zinc-800/50 rounded transition-colors truncate">
                       {t.name}
                     </button>
                   ))}
@@ -319,7 +348,6 @@ export default function VeritasPlayground() {
               )}
             </div>
 
-            {/* Capability Groups (Accordion) */}
             <div className="space-y-4">
               {CAPABILITY_GROUPS.map(group => (
                 <div key={group.name}>
@@ -344,7 +372,6 @@ export default function VeritasPlayground() {
           </div>
         </aside>
 
-        {/* Main: Execution */}
         <section className="flex-1 flex flex-col min-w-0 bg-[#0c0c0e] relative">
           <div className="p-6 border-b border-zinc-800 bg-zinc-900/10">
             <div className="flex justify-between items-center mb-3">
@@ -383,7 +410,6 @@ export default function VeritasPlayground() {
           </div>
         </section>
 
-        {/* Right: Audit */}
         <aside className="w-80 border-l border-zinc-800 bg-zinc-900/20 p-6 flex flex-col gap-6 overflow-y-auto">
           <label className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5" /> Verification</label>
           
