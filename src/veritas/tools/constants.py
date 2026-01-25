@@ -321,3 +321,47 @@ COMET_ABI = [
         "type": "function",
     },
 ]
+
+# --- Chainlink Price Feeds ---
+CHAINLINK_FEED_ADDRESSES = {
+    "base-mainnet": {
+        "ETH/USD": "0x71099754BA84C2bF03C518b27dfDA49b638D592C",
+        "BTC/USD": "0x6c113dF1D5dDB89C51F1C9C9dD42F6f7d50A43E4",
+        "USDC/USD": "0x7e860098F58bB4C92dFf5d47c33A4C7f3A7aA6e6",
+    },
+    "base-sepolia": {
+        "ETH/USD": "0xE2E1CECaF186D44A4B01f46D6A7EcaE2B89c8076",
+        "BTC/USD": "0xd94e4C1C3bB697AAE92744FAA4E43B5c2Ef11f16",
+        "USDC/USD": "0x7e860098F58bB4C92dFf5d47c33A4C7f3A7aA6e6",
+    },
+}
+
+CHAINLINK_ABI = [
+    {
+        "inputs": [],
+        "name": "latestRoundData",
+        "outputs": [
+            {"internalType": "uint80", "name": "roundId", "type": "uint80"},
+            {"internalType": "int256", "name": "answer", "type": "int256"},
+            {"internalType": "uint256", "name": "startedAt", "type": "uint256"},
+            {"internalType": "uint256", "name": "updatedAt", "type": "uint256"},
+            {"internalType": "uint80", "name": "answeredInRound", "type": "uint80"},
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "description",
+        "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
