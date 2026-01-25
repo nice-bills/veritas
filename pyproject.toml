@@ -1,7 +1,7 @@
 [project]
 name = "veritas"
 version = "0.1.0"
-description = "Add your description here"
+description = "Veritas - AI Agent Platform for Base with Built-in Cryptographic Auditing"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -19,8 +19,41 @@ dependencies = [
     "typer>=0.21.1",
     "uvicorn>=0.40.0",
     "websocket-client>=1.9.0",
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.30.0",
+    "redis>=5.0.0",
+    "aiosqlite>=0.20.0",
+    "aiofiles>=24.0.0",
 ]
-    
-    [project.scripts]
-    veritas = "veritas.cli:app"
-    
+
+[project.scripts]
+veritas = "veritas.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+    "httpx>=0.28.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
