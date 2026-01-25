@@ -106,7 +106,7 @@ class TradeCapability(VeritasCapability):
     def __init__(self, agent: Any):
         super().__init__("trading")
         self.agent = agent
-        from .adapter import VeritasAdapter 
+        from veritas.adapter import VeritasAdapter 
         
         # 1. Price Quote Tool
         self.tools.append(VeritasAdapter.to_tool(
