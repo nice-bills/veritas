@@ -16,6 +16,13 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+interface LogEntry {
+  event_type: string;
+  tool_name: string;
+  output_result: string | number | boolean | object;
+  timestamp: number;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_BASE_URL = API_BASE_URL.replace("http", "ws");
 
@@ -91,22 +98,22 @@ const DEFAULT_AGENT_NAME = 'Sentinel-1';
 const DEFAULT_OBJECTIVE = 'Check my balance. If I have ETH, transfer 0.0001 ETH to 0x000000000000000000000000000000000000dEaD to secure it.';
 const DEFAULT_CAPS = ['wallet', 'token', 'basename', 'aave'];
 
-const formatLogOutput = (log: { output_result: string }) => {
-  const result = log.output_result;
-  if (typeof result === 'string' && (result.trim().startsWith('{') || result.trim().startsWith('['))) {
-    try {
-      const parsed = JSON.parse(result);
-      if (parsed.thought) return parsed.thought;
-      if (parsed.balance_eth) return `Balance: ${parsed.balance_eth} ETH`;
-      if (parsed.price) return `Price: $${parsed.price}`;
-      if (parsed.tx_hash) return `Transaction: ${parsed.tx_hash}`;
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return result;
+  const formatLogOutput = (log: LogEntry) => {
+    const result = log.output_result;
+    if (typeof result === 'string' && (result.trim().startsWith('{') || result.trim().startsWith('['))) {
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed.thought) return parsed.thought;
+        if (parsed.balance_eth) return `Balance: ${parsed.balance_eth} ETH`;
+        if (parsed.price) return `Price: $${parsed.price}`;
+        if (parsed.tx_hash) return `Transaction: ${parsed.tx_hash}`;
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return result;
+      }
     }
-  }
-  return result;
-};
+    return String(result);
+  };
 
 const loadSavedConfig = () => {
   if (typeof window === 'undefined') return null;
@@ -133,14 +140,9 @@ export default function VeritasPlayground() {
   
   const [isRunning, setIsRunning] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-interface LogEntry {
-  event_type: string;
-  tool_name: string;
-  output_result: string | number | boolean | object;
-  timestamp: number;
-}
+  const [showTemplates, setShowTemplates] = useState(false);
 
-const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [sessionRoot, setSessionRoot] = useState<string | null>(null);
   const [attestationTx, setAttestationTx] = useState<string | null>(null);
   const [agentAddress, setAgentAddress] = useState<string | null>(null);
