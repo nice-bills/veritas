@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, Optional
 from .base import VeritasCapability, VeritasTool
 from .constants import (
@@ -60,20 +61,27 @@ class ERC721Capability(VeritasCapability):
             )
         )
 
-    def get_balance(self, contract_address: str, address: Optional[str] = None) -> Dict[str, Any]:
+    async def get_balance(self, contract_address: str, address: Optional[str] = None) -> Dict[str, Any]:
         target = address if address else self.agent.account.address
         contract = self.agent.w3.eth.contract(
             address=self.agent.w3.to_checksum_address(contract_address), abi=ERC721_ABI
         )
-        balance = contract.functions.balanceOf(self.agent.w3.to_checksum_address(target)).call()
+        balance = await asyncio.to_thread(
+            contract.functions.balanceOf(self.agent.w3.to_checksum_address(target)).call
+        )
         return {"contract": contract_address, "balance": balance, "owner": target}
 
-    def transfer(self, contract_address: str, to_address: str, token_id: int) -> Dict[str, Any]:
+    async def transfer(self, contract_address: str, to_address: str, token_id: int) -> Dict[str, Any]:
         w3 = self.agent.w3
         contract = w3.eth.contract(address=w3.to_checksum_address(contract_address), abi=ERC721_ABI)
 
         network_id = getattr(self.agent, "network", "base-sepolia")
         chain_id = 84532 if "sepolia" in network_id else 8453
+
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
 
         tx = contract.functions.safeTransferFrom(
             self.agent.account.address, w3.to_checksum_address(to_address), token_id
@@ -81,14 +89,16 @@ class ERC721Capability(VeritasCapability):
             {
                 "chainId": chain_id,
                 "gas": 150000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {"status": "success", "tx_hash": w3.to_hex(tx_hash), "token_id": token_id}
 
@@ -124,7 +134,7 @@ class BasenameCapability(VeritasCapability):
             )
         )
 
-    def register(self, basename: str, amount: str = "0.00001") -> Dict[str, Any]:
+    async def register(self, basename: str, amount: str = "0.00001") -> Dict[str, Any]:
         w3 = self.agent.w3
         network_id = getattr(self.agent, "network", "base-sepolia")
         is_mainnet = "sepolia" not in network_id
@@ -159,18 +169,25 @@ class BasenameCapability(VeritasCapability):
             "reverseRecord": True,
         }
 
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
+
         tx = registrar_contract.functions.register(register_request).build_transaction(
             {
                 "chainId": 84532 if not is_mainnet else 8453,
                 "value": w3.to_wei(amount, "ether"),
                 "gas": 300000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {"status": "success", "basename": full_name, "tx_hash": w3.to_hex(tx_hash)}

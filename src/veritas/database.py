@@ -1,7 +1,7 @@
 """Database models and utilities for Veritas."""
 
 from datetime import datetime
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 
 from sqlalchemy import (
@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     JSON,
     ForeignKey,
+    TypeDecorator,
 )
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -22,9 +23,51 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.pool import NullPool
 
-from veritas.config import settings
+from .config import settings
+from .crypto import encrypt_private_key, decrypt_private_key
 
 Base = declarative_base()
+
+
+class EncryptedText(TypeDecorator):
+    """SQLAlchemy type for transparent encryption of text fields.
+
+    This type automatically encrypts data before storing to the database
+    and decrypts it when retrieving. Uses Fernet symmetric encryption.
+
+    Example:
+        private_key = Column(EncryptedText, nullable=True)
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Optional[str], dialect) -> Optional[str]:
+        """Encrypt value before storing to database.
+
+        Called when saving data to the database.
+        """
+        if value is None:
+            return None
+        return encrypt_private_key(value)
+
+    def process_result_value(self, value: Optional[str], dialect) -> Optional[str]:
+        """Decrypt value when retrieving from database.
+
+        Called when loading data from the database.
+        Returns None if decryption fails (e.g., wrong key or corrupted data).
+        """
+        if value is None:
+            return None
+        try:
+            return decrypt_private_key(value)
+        except Exception:
+            # Return None if decryption fails - don't break the query
+            return None
+
+    def copy(self, **kw):
+        """Create a copy of this type."""
+        return EncryptedText()
 
 
 class AgentModel(Base):
@@ -37,7 +80,7 @@ class AgentModel(Base):
     network = Column(String(50), default="base-sepolia")
     brain_provider = Column(String(50), default="minimax")
     address = Column(String(42), nullable=False)
-    private_key = Column(Text, nullable=False)
+    private_key = Column(EncryptedText, nullable=True)  # Encrypted storage
     status = Column(String(50), default="active")
     capabilities = Column(JSON, default=list)
     config = Column(JSON, default=dict)

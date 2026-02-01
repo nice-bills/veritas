@@ -107,7 +107,10 @@ WETH_ABI = [
 
 ERC721_ABI = [
     {
-        "inputs": [{"internalType": "address", "name": "to", "type": "address"}, {"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+        "inputs": [
+            {"internalType": "address", "name": "to", "type": "address"},
+            {"internalType": "uint256", "name": "tokenId", "type": "uint256"},
+        ],
         "name": "mint",
         "outputs": [],
         "payable": False,
@@ -198,15 +201,15 @@ PYTH_ABI = [
                     {"internalType": "int64", "name": "price", "type": "int64"},
                     {"internalType": "uint64", "name": "conf", "type": "uint64"},
                     {"internalType": "int32", "name": "expo", "type": "int32"},
-                    {"internalType": "uint256", "name": "publishTime", "type": "uint256"}
+                    {"internalType": "uint256", "name": "publishTime", "type": "uint256"},
                 ],
                 "internalType": "struct PythStructs.Price",
                 "name": "price",
-                "type": "tuple"
+                "type": "tuple",
             }
         ],
         "stateMutability": "view",
-        "type": "function"
+        "type": "function",
     },
     {
         "inputs": [{"internalType": "bytes32", "name": "id", "type": "bytes32"}],
@@ -217,22 +220,22 @@ PYTH_ABI = [
                     {"internalType": "int64", "name": "price", "type": "int64"},
                     {"internalType": "uint64", "name": "conf", "type": "uint64"},
                     {"internalType": "int32", "name": "expo", "type": "int32"},
-                    {"internalType": "uint256", "name": "publishTime", "type": "uint256"}
+                    {"internalType": "uint256", "name": "publishTime", "type": "uint256"},
                 ],
                 "internalType": "struct PythStructs.Price",
                 "name": "price",
-                "type": "tuple"
+                "type": "tuple",
             }
         ],
         "stateMutability": "view",
-        "type": "function"
-    }
+        "type": "function",
+    },
 ]
 
 # --- Aave Constants ---
 AAVE_POOL_ADDRESSES = {
     "base-mainnet": "0xa238dd80c259a72e81d7e4664a9801593f98d1c5",
-    "base-sepolia": "0x0000000000000000000000000000000000000000" # TODO: Verify Sepolia
+    "base-sepolia": "0x6Ae43d32719F6Eb210cE53c300eD29798E90C478",  # Aave V3 Pool on Base Sepolia
 }
 
 AAVE_POOL_ABI = [

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Callable, Dict, List
 from pydantic import BaseModel, Field
 from decimal import Decimal
@@ -76,42 +77,49 @@ class WalletCapability(VeritasCapability):
             )
         )
 
-    def get_wallet_details(self) -> str:
+    async def get_wallet_details(self) -> str:
         addr = self.agent.account.address
         net = self.agent.network
-        bal_data = self.get_balance()
+        bal_data = await self.get_balance()
         bal = bal_data["balance_eth"]
         return f"""Wallet Details:
 - Address: {addr}
 - Network: {net}
 - Native Balance: {bal} ETH"""
 
-    def get_balance(self) -> Dict[str, Any]:
-        wei = self.agent.w3.eth.get_balance(self.agent.account.address)
-        eth = self.agent.w3.from_wei(wei, "ether")
+    async def get_balance(self) -> Dict[str, Any]:
+        wei = await asyncio.to_thread(self.agent.w3.eth.get_balance, self.agent.account.address)
+        from web3 import Web3
+
+        eth = Web3.from_wei(wei, "ether")
         return {"balance_eth": float(eth), "address": self.agent.account.address}
 
-    def native_transfer(self, to: str, value: str) -> str:
+    async def native_transfer(self, to: str, value: str) -> str:
+        from web3 import Web3
+
         w3 = self.agent.w3
-        wei_value = w3.to_wei(Decimal(value), "ether")
+        wei_value = Web3.to_wei(Decimal(value), "ether")
 
         # Determine chainId from network string
         network_id = getattr(self.agent, "network", "base-sepolia")
         chain_id = 84532 if "sepolia" in network_id else 8453
 
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(w3.eth.get_transaction_count, self.agent.account.address)
+
         tx = {
-            "to": w3.to_checksum_address(to),
+            "to": Web3.to_checksum_address(to),
             "value": wei_value,
             "gas": 21000,
-            "gasPrice": w3.eth.gas_price,
-            "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+            "gasPrice": gas_price,
+            "nonce": nonce,
             "chainId": chain_id,
         }
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(w3.eth.send_raw_transaction, signed.raw_transaction)
 
-        return f"Transferred {value} ETH to {to}. Hash: {w3.to_hex(tx_hash)}"
+        return f"Transferred {value} ETH to {to}. Hash: {Web3.to_hex(tx_hash)}"
 
 
 class TradeCapability(VeritasCapability):

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, Optional
 from decimal import Decimal
 from .base import VeritasCapability, VeritasTool
@@ -155,26 +156,33 @@ class TokenCapability(VeritasCapability):
             address=self.agent.w3.to_checksum_address(address), abi=abi
         )
 
-    def get_balance(self, token_address: str, address: Optional[str] = None) -> Dict[str, Any]:
+    async def get_balance(self, token_address: str, address: Optional[str] = None) -> Dict[str, Any]:
         target_address = address if address else self.agent.account.address
         contract = self._get_contract(token_address, ERC20_ABI)
 
-        balance = contract.functions.balanceOf(
-            self.agent.w3.to_checksum_address(target_address)
-        ).call()
-        decimals = contract.functions.decimals().call()
-        symbol = contract.functions.symbol().call()
+        balance = await asyncio.to_thread(
+            contract.functions.balanceOf(
+                self.agent.w3.to_checksum_address(target_address)
+            ).call
+        )
+        decimals = await asyncio.to_thread(contract.functions.decimals().call)
+        symbol = await asyncio.to_thread(contract.functions.symbol().call)
 
         readable = Decimal(balance) / Decimal(10**decimals)
         return {"symbol": symbol, "balance": float(readable), "address": target_address}
 
-    def transfer(self, token_address: str, to_address: str, amount: str) -> Dict[str, Any]:
+    async def transfer(self, token_address: str, to_address: str, amount: str) -> Dict[str, Any]:
         w3 = self.agent.w3
         contract = self._get_contract(token_address, ERC20_ABI)
-        decimals = contract.functions.decimals().call()
+        decimals = await asyncio.to_thread(contract.functions.decimals().call)
 
         # Convert to raw units
         raw_amount = int(Decimal(amount) * (10**decimals))
+
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
 
         tx = contract.functions.transfer(
             w3.to_checksum_address(to_address), raw_amount
@@ -182,22 +190,29 @@ class TokenCapability(VeritasCapability):
             {
                 "chainId": 84532,  # TODO: Dynamic Chain ID from agent.network
                 "gas": 100000,  # Basic estimation, ideally simulate
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {"status": "success", "tx_hash": w3.to_hex(tx_hash), "amount": amount}
 
-    def approve(self, token_address: str, spender_address: str, amount: str) -> Dict[str, Any]:
+    async def approve(self, token_address: str, spender_address: str, amount: str) -> Dict[str, Any]:
         w3 = self.agent.w3
         contract = self._get_contract(token_address, ERC20_ABI)
-        decimals = contract.functions.decimals().call()
+        decimals = await asyncio.to_thread(contract.functions.decimals().call)
         raw_amount = int(Decimal(amount) * (10**decimals))
+
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
 
         tx = contract.functions.approve(
             w3.to_checksum_address(spender_address), raw_amount
@@ -205,14 +220,16 @@ class TokenCapability(VeritasCapability):
             {
                 "chainId": 84532,
                 "gas": 100000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {
             "status": "success",
@@ -221,14 +238,16 @@ class TokenCapability(VeritasCapability):
             "spender": spender_address,
         }
 
-    def get_allowance(self, token_address: str, spender_address: str) -> Dict[str, Any]:
+    async def get_allowance(self, token_address: str, spender_address: str) -> Dict[str, Any]:
         w3 = self.agent.w3
         contract = self._get_contract(token_address, ERC20_ABI)
-        decimals = contract.functions.decimals().call()
+        decimals = await asyncio.to_thread(contract.functions.decimals().call)
 
-        allowance = contract.functions.allowance(
-            self.agent.account.address, w3.to_checksum_address(spender_address)
-        ).call()
+        allowance = await asyncio.to_thread(
+            contract.functions.allowance(
+                self.agent.account.address, w3.to_checksum_address(spender_address)
+            ).call
+        )
 
         readable = Decimal(allowance) / Decimal(10**decimals)
         return {"allowance": float(readable), "token": token_address, "spender": spender_address}
@@ -248,7 +267,7 @@ class TokenCapability(VeritasCapability):
         tokens = TOKEN_ADDRESSES_BY_SYMBOLS.get(network_id, {})
         return tokens.get("WETH")
 
-    def wrap_eth(self, amount: str) -> Dict[str, Any]:
+    async def wrap_eth(self, amount: str) -> Dict[str, Any]:
         w3 = self.agent.w3
         weth_address = self._get_weth_address()
         if not weth_address:
@@ -257,23 +276,31 @@ class TokenCapability(VeritasCapability):
         wei_amount = w3.to_wei(Decimal(amount), "ether")
 
         contract = self._get_contract(weth_address, WETH_ABI)
+
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
+
         tx = contract.functions.deposit().build_transaction(
             {
                 "chainId": 84532,
                 "value": wei_amount,
                 "gas": 100000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {"status": "success", "tx_hash": w3.to_hex(tx_hash), "wrapped_amount": amount}
 
-    def unwrap_eth(self, amount: str) -> Dict[str, Any]:
+    async def unwrap_eth(self, amount: str) -> Dict[str, Any]:
         w3 = self.agent.w3
         weth_address = self._get_weth_address()
         if not weth_address:
@@ -282,17 +309,25 @@ class TokenCapability(VeritasCapability):
         wei_amount = w3.to_wei(Decimal(amount), "ether")
 
         contract = self._get_contract(weth_address, WETH_ABI)
+
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
+
         tx = contract.functions.withdraw(wei_amount).build_transaction(
             {
                 "chainId": 84532,
                 "gas": 100000,
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
                 "from": self.agent.account.address,
             }
         )
 
         signed = w3.eth.account.sign_transaction(tx, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
 
         return {"status": "success", "tx_hash": w3.to_hex(tx_hash), "unwrapped_amount": amount}

@@ -131,6 +131,20 @@ class TestVeritasTools(unittest.TestCase):
         self.assertIn("price", res)
         print("OK: Pyth Price")
 
+    def test_compound_capability(self):
+        print("\nTesting Compound Capability...")
+        cap = CompoundCapability(self.mock_agent)
+
+        # Mock Supply
+        self.mock_contract.functions.supply.return_value.build_transaction.return_value = {
+            "data": "0xcompound_supply"
+        }
+
+        res = cap.supply("USDC", "100")
+        self.assertEqual(res["status"], "success")
+        self.mock_contract.functions.supply.assert_called()
+        print("OK: Compound Supply")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from datetime import datetime
 from .logger import VeritasLogger
 from .attestor import VeritasAttestor
 from .brain import BrainFactory
+from .database import get_db_context, SessionModel, LogModel
 from .tools import (
     VeritasCapability,
     VeritasTool,
@@ -26,6 +27,7 @@ from .tools import (
     ChainlinkCapability,
 )
 from eth_account import Account
+from web3 import Web3
 from cdp import CdpClient
 
 
@@ -60,6 +62,14 @@ class VeritasAgent:
             self.account = Account.from_key(private_key)
         else:
             self.account = Account.create()
+
+        # Web3 setup for balance checks
+        RPC_URLS = {
+            "base-sepolia": "https://sepolia.base.org",
+            "base-mainnet": "https://base-mainnet.public.blastapi.io",
+        }
+        rpc_url = RPC_URLS.get(network, RPC_URLS["base-sepolia"])
+        self.w3 = Web3(Web3.HTTPProvider(rpc_url))
 
         # Infrastructure Setup
         self.client_credentials = {}
@@ -256,7 +266,7 @@ class PersistentVeritasAgent(VeritasAgent):
             minimax_api_key=minimax_api_key,
         )
 
-        self.id = agent_id or str(uuid.uuid4())
+        self.id = agent_id if agent_id is not None else str(uuid.uuid4())
         self.db_session = db_session
         self.checkpoint_interval = 100
         self.current_objective = None
@@ -390,7 +400,44 @@ INSTRUCTIONS:
 
         if decision.get("finished"):
             print("[PersistentAgent] Objective completed")
+            objective = self.current_objective
             self.current_objective = None
+
+            try:
+                root = self.logger.get_current_root()
+                tx_hash = await self.attestor.attest_root(merkle_root=root, agent_id=self.name)
+                logs = self.logger.get_logs()
+
+                async with get_db_context() as db:
+                    session = SessionModel(
+                        id=str(uuid.uuid4()),
+                        agent_id=self.id,
+                        objective=objective,
+                        status="completed",
+                        session_root=root,
+                        attestation_tx=tx_hash,
+                    )
+                    db.add(session)
+
+                    for log in logs:
+                        db_log = LogModel(
+                            id=str(uuid.uuid4()),
+                            session_id=session.id,
+                            basis_id=log.basis_id,
+                            event_type=log.event_type,
+                            tool_name=log.tool_name,
+                            input_params={},
+                            output_result=str(log.output_result) if log.output_result else None,
+                            timestamp=log.timestamp,
+                            merkle_leaf=log.merkle_leaf if hasattr(log, "merkle_leaf") else "",
+                        )
+                        db.add(db_log)
+
+                    await db.commit()
+                    print(f"[PersistentAgent] Session saved: {session.id}")
+            except Exception as e:
+                print(f"[PersistentAgent] Failed to save session: {e}")
+
             return
 
         tool_name = decision.get("tool")

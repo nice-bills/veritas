@@ -52,6 +52,12 @@ class MerkleTree:
             return None
         return self.tree[-1][0]
 
+    def get_leaf_hash(self, index: int) -> Optional[str]:
+        """Get the hash of a leaf at a specific index."""
+        if not self.leaves or index >= len(self.leaves):
+            return None
+        return self._hash(self.leaves[index])
+
     def get_proof(self, index: int) -> List[dict]:
         """
         Generate a Merkle proof for the leaf at index.

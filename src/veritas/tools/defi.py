@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict
 from .base import VeritasCapability, VeritasTool
 from .constants import (
@@ -20,38 +21,45 @@ class DeFiCapability(VeritasCapability):
         super().__init__(name)
         self.agent = agent
 
-    def _get_decimals(self, token_address: str) -> int:
+    async def _get_decimals(self, token_address: str) -> int:
         """Fetch decimals from the ERC20 contract."""
         try:
             contract = self.agent.w3.eth.contract(
                 address=self.agent.w3.to_checksum_address(token_address), abi=ERC20_ABI
             )
-            return contract.functions.decimals().call()
+            return await asyncio.to_thread(contract.functions.decimals().call)
         except Exception:
             return 18  # Fallback
 
-    def _simulate_and_send(self, tx_params: dict) -> str:
+    async def _simulate_and_send(self, tx_params: dict) -> str:
         """Simulate a transaction and then sign/send if successful."""
         w3 = self.agent.w3
 
         # 1. Simulate
         try:
-            w3.eth.call(tx_params)
+            await asyncio.to_thread(w3.eth.call, tx_params)
         except Exception as e:
             raise Exception(f"Transaction simulation failed: {e}")
 
         # 2. Build remaining params
+        gas_price = await asyncio.to_thread(w3.eth.gas_price)
+        nonce = await asyncio.to_thread(
+            w3.eth.get_transaction_count, self.agent.account.address
+        )
+
         tx_params.update(
             {
                 "gas": 300000,  # Base buffer
-                "gasPrice": w3.eth.gas_price,
-                "nonce": w3.eth.get_transaction_count(self.agent.account.address),
+                "gasPrice": gas_price,
+                "nonce": nonce,
             }
         )
 
         # 3. Sign and Send
         signed = w3.eth.account.sign_transaction(tx_params, self.agent.account.key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        tx_hash = await asyncio.to_thread(
+            w3.eth.send_raw_transaction, signed.raw_transaction
+        )
         return w3.to_hex(tx_hash)
 
 
@@ -112,10 +120,10 @@ class AaveCapability(DeFiCapability):
             raise ValueError(f"Token {symbol} not found on {network_id}")
         return addr
 
-    def supply(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
+    async def supply(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
         contract = self._get_pool_contract()
         asset_addr = self._get_asset_address(asset_symbol)
-        decimals = self._get_decimals(asset_addr)
+        decimals = await self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10**decimals))
 
         tx_params = contract.functions.supply(
@@ -127,13 +135,13 @@ class AaveCapability(DeFiCapability):
             }
         )
 
-        tx_hash = self._simulate_and_send(tx_params)
+        tx_hash = await self._simulate_and_send(tx_params)
         return {"status": "success", "action": "supply", "tx_hash": tx_hash}
 
-    def borrow(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
+    async def borrow(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
         contract = self._get_pool_contract()
         asset_addr = self._get_asset_address(asset_symbol)
-        decimals = self._get_decimals(asset_addr)
+        decimals = await self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10**decimals))
 
         tx_params = contract.functions.borrow(
@@ -149,7 +157,7 @@ class AaveCapability(DeFiCapability):
             }
         )
 
-        tx_hash = self._simulate_and_send(tx_params)
+        tx_hash = await self._simulate_and_send(tx_params)
         return {"status": "success", "action": "borrow", "tx_hash": tx_hash}
 
 
@@ -177,7 +185,7 @@ class CompoundCapability(DeFiCapability):
             )
         )
 
-    def supply(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
+    async def supply(self, asset_symbol: str, amount: str) -> Dict[str, Any]:
         network_id = getattr(self.agent, "network", "base-mainnet")
         comet_addr = COMET_ADDRESSES.get(network_id)
         if not comet_addr:
@@ -188,7 +196,7 @@ class CompoundCapability(DeFiCapability):
         )
         tokens = TOKEN_ADDRESSES_BY_SYMBOLS.get(network_id, {})
         asset_addr = tokens.get(asset_symbol.upper())
-        decimals = self._get_decimals(asset_addr)
+        decimals = await self._get_decimals(asset_addr)
         raw_amount = int(Decimal(amount) * (10**decimals))
 
         tx_params = contract.functions.supply(
@@ -200,5 +208,5 @@ class CompoundCapability(DeFiCapability):
             }
         )
 
-        tx_hash = self._simulate_and_send(tx_params)
+        tx_hash = await self._simulate_and_send(tx_params)
         return {"status": "success", "protocol": "Compound", "tx_hash": tx_hash}

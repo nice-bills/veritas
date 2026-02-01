@@ -1,11 +1,16 @@
-import type { Metadata } from "next";
-import { Toaster } from "sonner";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Veritas OS | Crypto Agent Platform",
-  description: "The easiest way to build, test, and audit crypto AI agents on Base.",
-  themeColor: "#09090b",
+  title: "Veritas | Crypto AI Agent Platform",
+  description: "Deploy AI agents on Base with cryptographic proof. The easiest way to build, test, and audit autonomous crypto agents.",
+  keywords: ["AI agents", "crypto", "Base", "blockchain", "DeFi", "automation"],
+  authors: [{ name: "Veritas" }],
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -14,10 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" style={{ colorScheme: "dark" }}>
-      <body className="bg-zinc-950 text-white antialiased min-h-screen">
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-[#0a0a0a] text-white antialiased min-h-screen overflow-x-hidden">
         {children}
-        <Toaster position="bottom-right" theme="dark" />
       </body>
     </html>
   );

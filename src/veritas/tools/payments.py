@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, Optional
 import requests
 import json
@@ -181,17 +182,17 @@ class PaymentCapability(VeritasCapability):
         network = self._get_network()
         return USDC_ADDRESSES.get(network, USDC_ADDRESSES.get("base-sepolia"))
 
-    def _is_smart_wallet(self) -> bool:
+    async def _is_smart_wallet(self) -> bool:
         try:
             w3 = self.agent.w3
             address = self.agent.account.address
-            code = w3.eth.get_code(address)
+            code = await asyncio.to_thread(w3.eth.get_code, address)
             return len(code) > 2
         except Exception:
             return False
 
-    def get_wallet_type(self) -> Dict[str, Any]:
-        is_smart = self._is_smart_wallet()
+    async def get_wallet_type(self) -> Dict[str, Any]:
+        is_smart = await self._is_smart_wallet()
         address = self.agent.account.address
 
         if is_smart:
@@ -397,7 +398,7 @@ class PaymentCapability(VeritasCapability):
         except Exception as e:
             return {"error": f"Failed to parse payment requirements: {e}"}
 
-    def pay_with_x402(
+    async def pay_with_x402(
         self, url: str, max_amount: float, use_smart_wallet: bool = False
     ) -> Dict[str, Any]:
         try:
@@ -438,8 +439,8 @@ class PaymentCapability(VeritasCapability):
                     "message": f"Required payment {price} exceeds max_amount {max_amount}",
                 }
 
-            is_smart = self._is_smart_wallet()
-            wallet_info = self.get_wallet_type()
+            is_smart = await self._is_smart_wallet()
+            wallet_info = await self.get_wallet_type()
 
             if use_smart_wallet or is_smart:
                 result = self.build_user_operation(pay_to, price_value)

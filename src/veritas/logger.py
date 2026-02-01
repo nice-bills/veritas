@@ -17,6 +17,7 @@ class ActionLog(BaseModel):
     tool_name: str
     input_params: Dict[str, Any]
     output_result: Any
+    merkle_leaf: str = ""  # Merkle leaf hash for this log entry
 
     def to_hashable_json(self) -> str:
         """Deterministic JSON serialization for hashing."""
@@ -51,9 +52,12 @@ class VeritasLogger:
             event_type=event_type,
             basis_id=basis_id,
         )
+        self._merkle_tree.add_leaf(entry.to_hashable_json())
+        leaf_hash = self._merkle_tree.get_leaf_hash(len(self._logs))
+        entry.merkle_leaf = leaf_hash or ""
+
         self._logs.append(entry)
         self.last_event_id = entry.id
-        self._merkle_tree.add_leaf(entry.to_hashable_json())
 
         for listener in self.listeners:
             try:
