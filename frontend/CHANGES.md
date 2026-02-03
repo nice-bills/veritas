@@ -1,6 +1,6 @@
 # Veritas Frontend - Complete Overhaul Documentation
 
-## 🎯 What is Veritas?
+## Target: What is Veritas?
 
 Veritas is a **Crypto AI Agent Playground** - think of it as "Replit for Crypto Agents." It's a platform where developers and users can:
 - Build autonomous AI agents that interact with blockchain
@@ -22,7 +22,7 @@ Veritas is a **Crypto AI Agent Playground** - think of it as "Replit for Crypto 
 
 ---
 
-## 🔥 What I Changed
+##  What I Changed
 
 ### 1. **globals.css** - Visual Foundation
 Added:
@@ -126,32 +126,32 @@ body: JSON.stringify({
 
 ---
 
-## 📊 Backend vs Frontend Mapping
+## Data: Backend vs Frontend Mapping
 
 ### Backend Capabilities (14 Total):
 
 | Capability | Tools Available | Frontend Status |
 |------------|----------------|-----------------|
-| **wallet** | get_balance, native_transfer | ✅ Fully supported |
-| **token** | erc20_transfer, wrap_eth, unwrap_eth | ✅ Fully supported |
-| **trade** | get_swap_price | ✅ Fully supported |
-| **aave** | aave_supply, aave_borrow | ✅ Fully supported |
-| **compound** | compound_supply | ✅ Fully supported |
-| **nft** | nft_balance, nft_transfer | ✅ Fully supported |
-| **basename** | register_basename | ✅ Fully supported |
-| **social** | post_tweet | ✅ Fully supported |
-| **payments** | http_request, pay_with_x402 | ✅ Fully supported |
-| **wow** | launch_token | ✅ Fully supported |
-| **nillion** | store_secret, retrieve_secret | ✅ Fully supported |
-| **pyth** | get_price | ✅ Fully supported |
-| **chainlink** | get_price | ✅ Fully supported |
-| **onramp** | get_buy_url | ✅ Fully supported |
+| **wallet** | get_balance, native_transfer |  Fully supported |
+| **token** | erc20_transfer, wrap_eth, unwrap_eth |  Fully supported |
+| **trade** | get_swap_price |  Fully supported |
+| **aave** | aave_supply, aave_borrow |  Fully supported |
+| **compound** | compound_supply |  Fully supported |
+| **nft** | nft_balance, nft_transfer |  Fully supported |
+| **basename** | register_basename |  Fully supported |
+| **social** | post_tweet |  Fully supported |
+| **payments** | http_request, pay_with_x402 |  Fully supported |
+| **wow** | launch_token |  Fully supported |
+| **nillion** | store_secret, retrieve_secret |  Fully supported |
+| **pyth** | get_price |  Fully supported |
+| **chainlink** | get_price |  Fully supported |
+| **onramp** | get_buy_url |  Fully supported |
 
 **Key Change**: Old frontend only sent `capabilities: ['wallet']`. Now it sends whatever the user selects: `['wallet', 'token', 'aave', 'trade']` etc.
 
 ---
 
-## 🚀 How to Use the New Playground
+##  How to Use the New Playground
 
 ### Step 1: Welcome Screen
 1. Enter your name
@@ -239,7 +239,7 @@ body: JSON.stringify({
 
 ---
 
-## ⚠️ What's Still Missing (Future Work)
+## Warning: What's Still Missing (Future Work)
 
 ### High Priority:
 1. **Agent Templates Gallery**
@@ -283,7 +283,7 @@ body: JSON.stringify({
 
 ---
 
-## 🔧 Technical Details
+## Tool: Technical Details
 
 ### File Structure:
 ```
@@ -398,7 +398,7 @@ announcing the trade with the price.
 
 ---
 
-## 💡 Why This Matters
+## Tip: Why This Matters
 
 **Before**: Frontend only let users do basic wallet operations
 **After**: Frontend exposes ALL backend capabilities

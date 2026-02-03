@@ -1,6 +1,6 @@
 # Veritas Production Deployment Guide
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 
@@ -186,7 +186,7 @@ http {
 | Redis | 6379 | Caching & sessions |
 | Nginx | 80/443 | Reverse proxy (optional) |
 
-## 🔧 Environment Variables
+## Tool: Environment Variables
 
 ### Required
 
@@ -248,7 +248,7 @@ curl http://localhost:8000/health
 curl http://localhost:3000/api/health
 ```
 
-## 🚨 Troubleshooting
+## ALERT: Troubleshooting
 
 ### Services Won't Start
 
@@ -274,7 +274,7 @@ curl http://localhost:3000/api/health
 2. Check firewall rules for WebSocket port
 3. Ensure nginx proxy configuration includes /ws location
 
-## 📊 Monitoring
+## Data: Monitoring
 
 ### Docker Stats
 
@@ -292,7 +292,7 @@ docker system df
 docker system prune
 ```
 
-## 🔐 Security Checklist
+## Security: Security Checklist
 
 - [ ] Change default passwords in .env
 - [ ] Use strong ENCRYPTION_KEY (32+ characters)
@@ -303,7 +303,7 @@ docker system prune
 - [ ] Enable database backups
 - [ ] Review and rotate API keys periodically
 
-## 📝 Additional Resources
+## Note: Additional Resources
 
 - [Docker Documentation](https://docs.docker.com/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
