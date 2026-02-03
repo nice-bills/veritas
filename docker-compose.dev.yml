@@ -1,0 +1,105 @@
+version: "3.8"
+
+# Development Docker Compose Configuration
+# Use: docker compose -f docker-compose.dev.yml up -d
+# Hot-reload enabled for development
+
+services:
+  # Backend API (development with hot reload)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dependencies
+    container_name: veritas-backend-dev
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://veritas:veritas@postgres:5432/veritas
+      - REDIS_URL=redis://redis:6379/0
+      - CDP_API_KEY_ID=${CDP_API_KEY_ID}
+      - CDP_API_KEY_SECRET=${CDP_API_KEY_SECRET}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-development-key-do-not-use-in-production}
+      - ENABLE_MAINNET=false
+      - DEBUG=true
+      - WEBSOCKET_TOKEN=${CDP_API_KEY_ID}
+      - CORS_ORIGINS=http://localhost:3001,http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    command: uvicorn src.veritas.api.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    networks:
+      - veritas-dev-network
+
+  # Frontend (development with hot reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dependencies
+    container_name: veritas-frontend-dev
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8001
+      - NODE_ENV=development
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/next.config.ts:/app/next.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+    command: npm run dev -- --port 3000
+    restart: unless-stopped
+    networks:
+      - veritas-dev-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: veritas-postgres-dev
+    environment:
+      - POSTGRES_USER=veritas
+      - POSTGRES_PASSWORD=veritas
+      - POSTGRES_DB=veritas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - veritas-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veritas -d veritas"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: veritas-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+    networks:
+      - veritas-dev-network
+    command: redis-server --appendonly yes
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+networks:
+  veritas-dev-network:
+    driver: bridge

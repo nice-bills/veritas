@@ -1,4 +1,4 @@
-# Veritas - AI Agent Platform for Base
+# Veritas Backend - AI Agent Platform for Base
 # Multi-stage build for production deployment
 
 # Stage 1: Dependencies
@@ -22,6 +22,7 @@ WORKDIR /app
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from dependencies stage
@@ -29,19 +30,19 @@ COPY --from=dependencies /app/.venv /app/.venv
 
 # Copy application code
 COPY src/ ./src/
-COPY frontend/ ./frontend/
 
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PORT=8000
 
 # Expose port
 EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000')" || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application
-CMD ["uvicorn", "veritas.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.veritas.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
